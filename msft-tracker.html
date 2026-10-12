@@ -135,11 +135,14 @@ td button { padding: 2px 8px; font-size: 12px; }
         <label for="price">Price $</label>
         <input id="price" type="number" inputmode="decimal" step="0.01" min="1" value="533.68">
       </div>
+      <button id="fetch" type="button" hidden>Fetch live price</button>
       <button id="log" class="primary" type="button">Log price</button>
       <button id="reset" type="button">Reset to $533.68</button>
       <button id="theme" class="theme" type="button" aria-label="Toggle light and dark theme">Theme</button>
     </div>
   </header>
+
+  <p class="legend" id="quote" aria-live="polite" hidden></p>
 
   <section class="score" aria-label="Pillar scorecard">
     <div class="verdict" id="verdict"></div>
@@ -396,6 +399,53 @@ td button { padding: 2px 8px; font-size: 12px; }
     logData.splice(parseInt(b.getAttribute("data-del"), 10), 1);
     saveLog(logData); renderLog();
   });
+  // live price via the viewer's Firecrawl connector (one page scrape, on click only)
+  var mcp = null, SERVER = "Firecrawl";
+  function say(msg, bad) {
+    var q = $("quote");
+    q.hidden = false; q.textContent = msg;
+    q.style.color = bad ? "var(--bad)" : "var(--muted)";
+  }
+  function parseQuote(res) {
+    var d = res && res.payload;
+    if (typeof d === "string") { try { d = JSON.parse(d); } catch (e) { d = null; } }
+    var j = d && (d.json || d);
+    var v = j ? Number(j.price) : NaN;
+    return isFinite(v) && v > 1 && v < 10000 ? { price: v, asOf: j.asOf || "" } : null;
+  }
+  function fetchLive() {
+    if (!mcp) return;
+    var btn = $("fetch");
+    btn.disabled = true; btn.textContent = "Fetching…";
+    mcp.callTool(SERVER, "firecrawl_scrape", {
+      url: "https://stockanalysis.com/stocks/msft/",
+      objective: "Fetch the current MSFT share price for a stock tracker page",
+      formats: ["json"],
+      maxAge: 0,
+      jsonOptions: {
+        prompt: "Current Microsoft (MSFT) stock price in USD and the time of the quote",
+        schema: { type: "object", properties: { price: { type: "number" }, asOf: { type: "string" } }, required: ["price"] }
+      }
+    }, { cache: false }).then(function (res) {
+      var q = parseQuote(res);
+      if (!q) { say("The quote page loaded but no price could be read. Try again, or type the price.", true); return; }
+      priceEl.value = q.price.toFixed(2); render();
+      say("Live price $" + q.price.toFixed(2) + (q.asOf ? " as of " + q.asOf : "") + " (stockanalysis.com). Press Log price to save it.");
+    }).catch(function (err) {
+      var c = err && err.code;
+      var m = c === "server_not_connected" ? "Add the Firecrawl connector in claude.ai Settings → Connectors to fetch prices."
+        : c === "needs_reauth" ? "Reconnect Firecrawl in claude.ai Settings → Connectors, then try again."
+        : c === "not_in_manifest" || c === "approval_required" ? "Firecrawl is not allowed for this page. Allow it from the artifact's Permissions menu."
+        : c === "tool_error" ? "Firecrawl could not read the quote page: " + (err.message || "tool error")
+        : "Could not fetch the price (" + (c || "unknown error") + "). Try again in a moment, or type the price.";
+      say(m, true);
+    }).then(function () { btn.disabled = false; btn.textContent = "Fetch live price"; });
+  }
+  $("fetch").addEventListener("click", fetchLive);
+  if (window.claude && window.claude.use) {
+    window.claude.use("mcp").then(function (m) { mcp = m; if (m) $("fetch").hidden = false; }, function () {});
+  }
+
   $("theme").addEventListener("click", function () {
     var r = document.documentElement, cur = r.getAttribute("data-theme");
     var dark = cur ? cur === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
