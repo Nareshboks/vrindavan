@@ -1,0 +1,407 @@
+<title>MSFT Pillars Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: sticky price bar on top, pillar scorecard, buy-below targets, four metric ledgers, price log. */
+:root {
+  --bg: #f3f5f8;
+  --surface: #ffffff;
+  --surface-2: #eaeef4;
+  --line: #d8dee8;
+  --fg: #151b26;
+  --muted: #5b6678;
+  --accent: #1f5fd1;
+  --accent-soft: #dfe9fb;
+  --good: #14803c;
+  --good-soft: #dcf3e4;
+  --bad: #c2271f;
+  --bad-soft: #fbe1df;
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e121a; --surface: #161b26; --surface-2: #1e2533; --line: #2a3345;
+    --fg: #e6eaf2; --muted: #93a0b5; --accent: #6b9bff; --accent-soft: #1c2c4d;
+    --good: #4cc77a; --good-soft: #13301f; --bad: #ff7a70; --bad-soft: #3a1b19;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e121a; --surface: #161b26; --surface-2: #1e2533; --line: #2a3345;
+  --fg: #e6eaf2; --muted: #93a0b5; --accent: #6b9bff; --accent-soft: #1c2c4d;
+  --good: #4cc77a; --good-soft: #13301f; --bad: #ff7a70; --bad-soft: #3a1b19;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-sans); font-size: 14px; line-height: 1.45; padding-inline: 16px; padding-block: 0 48px; }
+.wrap { max-width: 1240px; margin-inline: auto; display: flex; flex-direction: column; gap: 24px; }
+.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+h1, h2 { margin: 0; text-wrap: balance; }
+h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; }
+
+/* top bar */
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 16px 12px; border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; }
+.id { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; min-width: 0; }
+.id h1 { font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
+.id span { color: var(--muted); }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.priceinput { display: flex; align-items: center; border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding-inline: 10px; }
+.priceinput:focus-within { border-color: var(--accent); outline: 2px solid var(--accent-soft); }
+.priceinput label { color: var(--muted); font-size: 12px; margin-right: 8px; }
+.priceinput input { width: 110px; border: 0; background: transparent; color: var(--fg); font: 600 18px var(--font-mono); padding-block: 7px; outline: none; }
+button { font: 500 13px var(--font-sans); color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 9px 12px; cursor: pointer; }
+button:hover { background: var(--surface-2); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.primary:hover { filter: brightness(1.08); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.theme { padding-inline: 10px; }
+
+/* verdict + pillars */
+.score { display: grid; grid-template-columns: minmax(0, 260px) minmax(0, 1fr); gap: 16px; }
+.verdict { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 20px; display: flex; flex-direction: column; gap: 6px; justify-content: center; }
+.verdict .big { font: 600 44px/1 var(--font-mono); letter-spacing: -.02em; }
+.verdict .big small { font-size: 20px; color: var(--muted); font-weight: 400; }
+.verdict p { margin: 0; color: var(--muted); }
+.verdict .tag { align-self: flex-start; font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 4px; }
+.pillars { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.pillar { background: var(--surface); padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.pillar .rule { font-weight: 600; font-size: 13px; }
+.pillar .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.pillar .val { font: 500 18px var(--font-mono); font-variant-numeric: tabular-nums; }
+.pillar .need { font-size: 12px; color: var(--muted); }
+.chip { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; flex: none; font-weight: 700; font-size: 13px; }
+.pass .chip { background: var(--good); color: #fff; }
+.fail .chip { background: var(--bad); color: #fff; }
+.pass .val { color: var(--good); }
+.fail .val { color: var(--bad); }
+
+/* buy-below */
+.targets { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; }
+.target-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.t h3 { margin: 0 0 8px; font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.t h3 span { font: 500 13px var(--font-mono); color: var(--muted); }
+.track { position: relative; height: 10px; background: var(--surface-2); border-radius: 5px; }
+.track .fill { position: absolute; inset: 0 auto 0 0; background: var(--accent-soft); border-radius: 5px; border-right: 2px solid var(--good); }
+.track .mark { position: absolute; top: -4px; width: 3px; height: 18px; background: var(--fg); border-radius: 2px; transform: translateX(-1px); }
+.scale { display: flex; justify-content: space-between; font: 12px var(--font-mono); color: var(--muted); margin-top: 6px; }
+.t p { margin: 8px 0 0; color: var(--muted); font-size: 13px; }
+
+/* ledgers */
+.ledgers { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.ledger { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.ledger h2 { padding: 12px 14px 8px; }
+.item { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 8px 14px; border-top: 1px solid var(--line); }
+.item .k { min-width: 0; }
+.item .v { font: 500 14px var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+.item .v small { display: block; font-size: 11px; color: var(--muted); font-weight: 400; }
+.live { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-left: 6px; vertical-align: middle; }
+.up { color: var(--good); } .down { color: var(--bad); }
+.legend { color: var(--muted); font-size: 12px; }
+
+/* log */
+.log { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; }
+.log-head { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: center; }
+.log-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 24px; }
+.spark { width: 100%; height: auto; display: block; }
+.tablewrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; min-width: 420px; }
+th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+td { padding: 7px 10px; border-bottom: 1px solid var(--line); font: 13px var(--font-mono); font-variant-numeric: tabular-nums; }
+td.x { text-align: right; }
+td button { padding: 2px 8px; font-size: 12px; }
+.foot { color: var(--muted); font-size: 12px; max-width: 80ch; }
+
+@media (max-width: 1000px) {
+  .ledgers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pillars { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .score, .log-body { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 620px) {
+  .ledgers, .target-grid { grid-template-columns: minmax(0, 1fr); }
+  .id h1 { font-size: 19px; }
+  .priceinput input { width: 90px; }
+}
+</style>
+
+<div class="wrap">
+  <header class="bar">
+    <div class="id">
+      <h1>Microsoft <span class="num">MSFT</span></h1>
+      <span>Pillars checklist, fundamentals as of the screenshot</span>
+    </div>
+    <div class="controls">
+      <div class="priceinput">
+        <label for="price">Price $</label>
+        <input id="price" type="number" inputmode="decimal" step="0.01" min="1" value="533.68">
+      </div>
+      <button id="log" class="primary" type="button">Log price</button>
+      <button id="reset" type="button">Reset to $533.68</button>
+      <button id="theme" class="theme" type="button" aria-label="Toggle light and dark theme">Theme</button>
+    </div>
+  </header>
+
+  <section class="score" aria-label="Pillar scorecard">
+    <div class="verdict" id="verdict"></div>
+    <div class="pillars" id="pillars"></div>
+  </section>
+
+  <section class="targets" aria-label="Price needed to pass">
+    <h2>Price needed to pass the two valuation pillars</h2>
+    <div class="target-grid" id="targets"></div>
+  </section>
+
+  <section class="ledgers" id="ledgers" aria-label="Metrics"></section>
+  <p class="legend"><span class="live"></span> moves with the price you enter. All other figures are fixed from the screenshot, where MSFT was $533.68 and market cap $3.97T.</p>
+
+  <section class="log" aria-label="Price log">
+    <div class="log-head">
+      <h2>Price log</h2>
+      <button id="clear" type="button">Clear log</button>
+    </div>
+    <div class="log-body">
+      <div id="spark"></div>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Date</th><th class="x">Price</th><th class="x">Pillars</th><th class="x">5Yr P/E</th><th class="x">5Yr P/FCF</th><th></th></tr></thead>
+          <tbody id="logrows"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+  <p class="foot">Not investment advice. Valuation figures rescale linearly with price from the screenshot values, so earnings, free cash flow and enterprise value net debt are held constant until you update them.</p>
+</div>
+
+<script>
+(function () {
+  var P0 = 533.68;          // price in the screenshot
+  var MC0 = 3970;           // market cap, $B
+  var EVGAP = 210;          // EV (Paul's formula) minus market cap, $B
+  var EV0 = MC0 + EVGAP;    // 4180
+
+  // price scaling factors
+  function fP(p) { return p / P0; }
+  function fEV(p) { return (MC0 * p / P0 + EVGAP) / EV0; }
+
+  function money(b) { // b in $B
+    var s = b < 0 ? "-" : "";
+    b = Math.abs(b);
+    return s + "$" + (b >= 1000 ? (b / 1000).toFixed(2) + "T" : b.toFixed(2) + "B");
+  }
+  var pct = function (v) { return v.toFixed(2) + "%"; };
+  var x2 = function (v) { return v.toFixed(2); };
+
+  // ledger definitions: [label, base value, scale kind, formatter]
+  var LEDGERS = [
+    { title: "Valuation and earnings", rows: [
+      ["Market Cap", MC0, "p", money],
+      ["Revenue (TTM)", 331.84, null, money],
+      ["Net Income (TTM)", 133.75, null, money],
+      ["5Yr Avg Net Income", 93.76, null, money],
+      ["P/E (TTM)", 29.72, "p", x2],
+      ["5Yr P/E", 42.39, "p", x2],
+      ["PS Ratio", 11.98, "p", x2],
+      ["PEG Ratio (past 5 yrs)", 1.71, "p", x2],
+      ["PEG Ratio (forward 3 yrs)", 1.40, "p", x2],
+      ["Profit Margin (TTM)", 40.31, null, pct],
+      ["5Yr Profit Margin", 36.95, null, pct],
+      ["10Yr Profit Margin", 34.28, null, pct],
+      ["Gross Profit Margin (TTM)", 67.94, null, pct]
+    ]},
+    { title: "Cash flow and capital", rows: [
+      ["Free Cash Flow (TTM)", 66.99, null, money],
+      ["5Yr Avg FCF", 67.46, null, money],
+      ["Price/FCF (TTM)", 59.33, "p", x2],
+      ["5Yr Price/FCF", 58.92, "p", x2],
+      ["Dividend Yield (TTM)", 0.67, "inv", pct],
+      ["Dividends Paid", 26.45, null, money],
+      ["Forward Dividend Yield", 0.68, "inv", pct],
+      ["Enterprise Value (traditional)", 4240, "evt", money],
+      ["Enterprise Value (Paul's formula)", 4180, "evt", money],
+      ["Return on Invested Capital (TTM)", 16.25, null, pct],
+      ["5Yr Return on Invested Capital", 19.99, null, pct],
+      ["Total 5Yr Net Acquisitions", -100.56, null, money]
+    ]},
+    { title: "Forward and enterprise", rows: [
+      ["Forward P/E", 27.08, "p", x2],
+      ["Return on Assets", 17.64, null, pct],
+      ["Return on Equity", 30.23, null, pct],
+      ["EV/Earnings", 31.22, "ev", x2],
+      ["EV/FCF", 62.34, "ev", x2],
+      ["EV/5Yr Earnings", 44.54, "ev", x2],
+      ["EV/5Yr FCF", 61.91, "ev", x2],
+      ["5Yr Compound Book Value Growth", 25.52, null, pct],
+      ["10Yr Compound Book Value Growth", 19.91, null, pct]
+    ]},
+    { title: "Trend (moving averages)", ma: [
+      ["25 Day MA", 504.70],
+      ["50 Day MA", 491.47],
+      ["100 Day MA", 445.32],
+      ["200 Day MA", 433.29]
+    ]}
+  ];
+
+  function scaled(base, kind, p) {
+    if (kind === "p") return base * fP(p);
+    if (kind === "inv") return base / fP(p);
+    if (kind === "ev") return base * fEV(p);
+    if (kind === "evt") return base + (MC0 * (p / P0 - 1)); // EV moves dollar for dollar with market cap
+    return base;
+  }
+
+  // pillars: pass test uses the live value where price matters
+  function pillars(p) {
+    var pe5 = 42.39 * fP(p), pfcf5 = 58.92 * fP(p);
+    return [
+      { rule: "5Yr P/E Ratio < 22.5", val: x2(pe5), pass: pe5 < 22.5, live: true },
+      { rule: "5Yr ROIC > 9%", val: pct(19.99), pass: true },
+      { rule: "Shares Outstanding falling", val: "-0.84%", pass: true },
+      { rule: "Cash Flow Growth 5Yr", val: "$10.87B", pass: true },
+      { rule: "Net Income Growth 5Yr", val: "$72.48B", pass: true },
+      { rule: "Revenue Growth 5Yr", val: "$163.75B", pass: true },
+      { rule: "LTL / 5Yr FCF < 5", val: "2.18", pass: true },
+      { rule: "5Yr Price to FCF < 22.5", val: x2(pfcf5), pass: pfcf5 < 22.5, live: true }
+    ];
+  }
+
+  var $ = function (id) { return document.getElementById(id); };
+  var priceEl = $("price");
+  var LOGKEY = "msft-tracker-log-v1";
+
+  function getPrice() {
+    var v = parseFloat(priceEl.value);
+    return isFinite(v) && v > 0 ? v : P0;
+  }
+
+  function renderScore(p) {
+    var ps = pillars(p), n = ps.filter(function (q) { return q.pass; }).length;
+    var tag = n === 8 ? ["All pillars pass", "good"] : n >= 6 ? ["Quality passes, price fails", "bad"] : ["Weak", "bad"];
+    $("verdict").innerHTML =
+      '<h2>Pillars passed</h2><div class="big">' + n + '<small> / 8</small></div>' +
+      '<span class="tag" style="background:var(--' + tag[1] + '-soft);color:var(--' + tag[1] + ')">' + tag[0] + '</span>' +
+      '<p>' + (n === 8 ? "Business quality and price both clear the bar." :
+        "The business clears every quality pillar. " + (8 - n) + " valuation pillar" + (8 - n > 1 ? "s" : "") + " still fail at this price.") + '</p>';
+    $("pillars").innerHTML = ps.map(function (q) {
+      return '<div class="pillar ' + (q.pass ? "pass" : "fail") + '">' +
+        '<div class="rule">' + q.rule + (q.live ? '<span class="live" title="Moves with price"></span>' : "") + '</div>' +
+        '<div class="row"><span class="val">' + q.val + '</span><span class="chip" aria-label="' + (q.pass ? "Pass" : "Fail") + '">' + (q.pass ? "&#10003;" : "&#10005;") + '</span></div>' +
+        '</div>';
+    }).join("");
+  }
+
+  function target(label, base, p) {
+    var need = 22.5 / base * P0;                 // price at which metric = 22.5
+    var cur = base * fP(p);
+    var max = Math.max(p, P0) * 1.1;
+    var gap = (need / p - 1) * 100;
+    var ok = cur < 22.5;
+    return '<div class="t"><h3>' + label + '<span>now ' + x2(cur) + ' &middot; limit 22.50</span></h3>' +
+      '<div class="track"><div class="fill" style="width:' + (need / max * 100).toFixed(2) + '%"></div>' +
+      '<div class="mark" style="left:' + (p / max * 100).toFixed(2) + '%" title="Current price"></div></div>' +
+      '<div class="scale"><span>$0</span><span>Pass below $' + need.toFixed(2) + '</span><span>$' + max.toFixed(0) + '</span></div>' +
+      '<p>' + (ok ? 'Passing. Price is ' + Math.abs(gap).toFixed(1) + '% under the limit.' :
+        'Price must fall <strong class="num down">' + Math.abs(gap).toFixed(1) + '%</strong> to $' + need.toFixed(2) + ' to pass.') + '</p></div>';
+  }
+  function renderTargets(p) {
+    $("targets").innerHTML = target("5Yr P/E Ratio", 42.39, p) + target("5Yr Price to Free Cash Flow", 58.92, p);
+  }
+
+  function renderLedgers(p) {
+    $("ledgers").innerHTML = LEDGERS.map(function (L) {
+      var rows;
+      if (L.ma) {
+        rows = L.ma.map(function (m) {
+          var d = (p / m[1] - 1) * 100;
+          return '<div class="item"><span class="k">' + m[0] + '</span><span class="v ' + (d >= 0 ? "up" : "down") + '">' +
+            (d >= 0 ? "&uarr; " : "&darr; ") + "$" + m[1].toFixed(2) + '<small>price ' + (d >= 0 ? "+" : "") + d.toFixed(1) + '%</small></span></div>';
+        }).join("");
+      } else {
+        rows = L.rows.map(function (r) {
+          var v = scaled(r[1], r[2], p);
+          return '<div class="item"><span class="k">' + r[0] + (r[2] ? '<span class="live"></span>' : "") + '</span><span class="v">' + r[3](v) + '</span></div>';
+        }).join("");
+      }
+      return '<div class="ledger"><h2>' + L.title + '</h2>' + rows + '</div>';
+    }).join("");
+  }
+
+  // price log (per-browser)
+  function loadLog() {
+    try { var a = JSON.parse(localStorage.getItem(LOGKEY)); if (Array.isArray(a)) return a; } catch (e) {}
+    return null;
+  }
+  function saveLog(a) { try { localStorage.setItem(LOGKEY, JSON.stringify(a)); } catch (e) {} }
+  var logData = loadLog();
+  if (!logData) {
+    logData = [{ d: new Date().toISOString().slice(0, 10), p: P0 }];
+    saveLog(logData);
+  }
+
+  function renderLog() {
+    var rows = logData.slice().reverse().map(function (e, i) {
+      var idx = logData.length - 1 - i;
+      var ps = pillars(e.p), n = ps.filter(function (q) { return q.pass; }).length;
+      return '<tr><td>' + e.d + '</td><td class="x">$' + e.p.toFixed(2) + '</td><td class="x ' + (n === 8 ? "up" : "") + '">' + n + '/8</td>' +
+        '<td class="x">' + x2(42.39 * fP(e.p)) + '</td><td class="x">' + x2(58.92 * fP(e.p)) + '</td>' +
+        '<td class="x"><button type="button" data-del="' + idx + '" aria-label="Delete entry">&times;</button></td></tr>';
+    }).join("");
+    $("logrows").innerHTML = rows || '<tr><td colspan="6" style="color:var(--muted)">No entries. Press "Log price" to record the current price.</td></tr>';
+    renderSpark();
+  }
+
+  function renderSpark() {
+    var W = 420, H = 150, padL = 44, padR = 12, padT = 12, padB = 24;
+    var pts = logData;
+    if (pts.length < 2) {
+      $("spark").innerHTML = '<p class="legend">Log prices on different days to see the trend here. First entry: <span class="num">$' +
+        (pts[0] ? pts[0].p.toFixed(2) : "–") + '</span>.</p>';
+      return;
+    }
+    var lo = Math.min.apply(null, pts.map(function (e) { return e.p; })), hi = Math.max.apply(null, pts.map(function (e) { return e.p; }));
+    if (hi - lo < 1) { hi += 1; lo -= 1; }
+    var span = hi - lo; lo -= span * .1; hi += span * .1;
+    var X = function (i) { return padL + i * (W - padL - padR) / (pts.length - 1); };
+    var Y = function (v) { return padT + (hi - v) / (hi - lo) * (H - padT - padB); };
+    var line = pts.map(function (e, i) { return (i ? "L" : "M") + X(i).toFixed(1) + " " + Y(e.p).toFixed(1); }).join(" ");
+    var area = line + " L" + X(pts.length - 1).toFixed(1) + " " + (H - padB) + " L" + padL + " " + (H - padB) + " Z";
+    var ticks = [lo + (hi - lo) * .1, (lo + hi) / 2, hi - (hi - lo) * .1];
+    var grid = ticks.map(function (t) {
+      return '<line x1="' + padL + '" x2="' + (W - padR) + '" y1="' + Y(t).toFixed(1) + '" y2="' + Y(t).toFixed(1) + '" stroke="var(--line)" stroke-width="1"/>' +
+        '<text x="' + (padL - 6) + '" y="' + (Y(t) + 4).toFixed(1) + '" text-anchor="end" font-size="11" fill="var(--muted)" font-family="IBM Plex Mono, monospace">' + t.toFixed(0) + '</text>';
+    }).join("");
+    var last = pts[pts.length - 1];
+    $("spark").innerHTML = '<svg class="spark" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Logged MSFT prices over time">' + grid +
+      '<path d="' + area + '" fill="var(--accent-soft)"/>' +
+      '<path d="' + line + '" fill="none" stroke="var(--accent)" stroke-width="2"/>' +
+      '<circle cx="' + X(pts.length - 1).toFixed(1) + '" cy="' + Y(last.p).toFixed(1) + '" r="4" fill="var(--accent)"/>' +
+      '<text x="' + padL + '" y="' + (H - 6) + '" font-size="11" fill="var(--muted)" font-family="IBM Plex Mono, monospace">' + pts[0].d + '</text>' +
+      '<text x="' + (W - padR) + '" y="' + (H - 6) + '" text-anchor="end" font-size="11" fill="var(--muted)" font-family="IBM Plex Mono, monospace">' + last.d + '</text></svg>';
+  }
+
+  function render() {
+    var p = getPrice();
+    renderScore(p); renderTargets(p); renderLedgers(p);
+  }
+
+  priceEl.addEventListener("input", render);
+  $("reset").addEventListener("click", function () { priceEl.value = P0.toFixed(2); render(); });
+  $("log").addEventListener("click", function () {
+    logData.push({ d: new Date().toISOString().slice(0, 10), p: Math.round(getPrice() * 100) / 100 });
+    saveLog(logData); renderLog();
+  });
+  $("clear").addEventListener("click", function () { logData = []; saveLog(logData); renderLog(); });
+  $("logrows").addEventListener("click", function (ev) {
+    var b = ev.target.closest("[data-del]");
+    if (!b) return;
+    logData.splice(parseInt(b.getAttribute("data-del"), 10), 1);
+    saveLog(logData); renderLog();
+  });
+  $("theme").addEventListener("click", function () {
+    var r = document.documentElement, cur = r.getAttribute("data-theme");
+    var dark = cur ? cur === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+    r.setAttribute("data-theme", dark ? "light" : "dark");
+  });
+
+  render(); renderLog();
+})();
+</script>
