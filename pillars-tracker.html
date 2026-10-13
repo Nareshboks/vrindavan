@@ -1,0 +1,533 @@
+<title>Pillars Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: sticky ticker bar, company header, pillar scorecard, buy-below targets, four metric ledgers, saved-ticker watchlist. */
+:root {
+  --bg: #f3f5f8;
+  --surface: #ffffff;
+  --surface-2: #eaeef4;
+  --line: #d8dee8;
+  --fg: #151b26;
+  --muted: #5b6678;
+  --accent: #1f5fd1;
+  --accent-soft: #dfe9fb;
+  --good: #14803c;
+  --good-soft: #dcf3e4;
+  --bad: #c2271f;
+  --bad-soft: #fbe1df;
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e121a; --surface: #161b26; --surface-2: #1e2533; --line: #2a3345;
+    --fg: #e6eaf2; --muted: #93a0b5; --accent: #6b9bff; --accent-soft: #1c2c4d;
+    --good: #4cc77a; --good-soft: #13301f; --bad: #ff7a70; --bad-soft: #3a1b19;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e121a; --surface: #161b26; --surface-2: #1e2533; --line: #2a3345;
+  --fg: #e6eaf2; --muted: #93a0b5; --accent: #6b9bff; --accent-soft: #1c2c4d;
+  --good: #4cc77a; --good-soft: #13301f; --bad: #ff7a70; --bad-soft: #3a1b19;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-sans); font-size: 14px; line-height: 1.45; padding-inline: 16px; padding-block: 0 48px; }
+.wrap { max-width: 1240px; margin-inline: auto; display: flex; flex-direction: column; gap: 24px; }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; }
+
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 16px 12px; border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; }
+.bar h1 { font-size: 20px; font-weight: 700; letter-spacing: -.01em; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.field { display: flex; align-items: center; border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding-inline: 10px; }
+.field:focus-within { border-color: var(--accent); outline: 2px solid var(--accent-soft); }
+.field label { color: var(--muted); font-size: 12px; margin-right: 8px; }
+.field input { border: 0; background: transparent; color: var(--fg); font: 600 17px var(--font-mono); padding-block: 7px; outline: none; }
+#ticker { width: 110px; text-transform: uppercase; }
+#price { width: 100px; }
+button { font: 500 13px var(--font-sans); color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 9px 12px; cursor: pointer; }
+button:hover:not(:disabled) { background: var(--surface-2); }
+button:disabled { opacity: .55; cursor: default; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.primary:hover:not(:disabled) { filter: brightness(1.08); background: var(--accent); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.num, .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+.status { margin: 0; color: var(--muted); font-size: 13px; }
+.status.err { color: var(--bad); }
+
+.company { display: flex; flex-wrap: wrap; gap: 4px 20px; align-items: baseline; justify-content: space-between; }
+.company h2.name { font-size: 24px; color: var(--fg); text-transform: none; letter-spacing: -.01em; font-weight: 700; }
+.company .sym { font: 500 14px var(--font-mono); color: var(--muted); margin-left: 8px; }
+.company .px { font: 600 26px var(--font-mono); }
+.company .sub { color: var(--muted); font-size: 12px; width: 100%; text-align: right; }
+
+.score { display: grid; grid-template-columns: minmax(0, 260px) minmax(0, 1fr); gap: 16px; }
+.verdict { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 20px; display: flex; flex-direction: column; gap: 6px; justify-content: center; }
+.verdict .big { font: 600 44px/1 var(--font-mono); letter-spacing: -.02em; }
+.verdict .big small { font-size: 20px; color: var(--muted); font-weight: 400; }
+.verdict p { margin: 0; color: var(--muted); }
+.verdict .tag { align-self: flex-start; font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 4px; }
+.pillars { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.pillar { background: var(--surface); padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.pillar .rule { font-weight: 600; font-size: 13px; }
+.pillar .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.pillar .val { font: 500 18px var(--font-mono); font-variant-numeric: tabular-nums; min-width: 0; overflow-wrap: anywhere; }
+.pillar .note { font-size: 12px; color: var(--muted); }
+.chip { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; flex: none; font-weight: 700; font-size: 13px; background: var(--surface-2); color: var(--muted); }
+.pass .chip { background: var(--good); color: #fff; }
+.fail .chip { background: var(--bad); color: #fff; }
+.pass .val { color: var(--good); }
+.fail .val { color: var(--bad); }
+.na .val { color: var(--muted); }
+
+.targets { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; }
+.target-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.t h3 { margin: 0 0 8px; font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.t h3 span { font: 500 13px var(--font-mono); color: var(--muted); }
+.track { position: relative; height: 10px; background: var(--surface-2); border-radius: 5px; }
+.track .fill { position: absolute; inset: 0 auto 0 0; background: var(--accent-soft); border-radius: 5px; border-right: 2px solid var(--good); }
+.track .mark { position: absolute; top: -4px; width: 3px; height: 18px; background: var(--fg); border-radius: 2px; transform: translateX(-1px); }
+.scale { display: flex; justify-content: space-between; gap: 8px; font: 12px var(--font-mono); color: var(--muted); margin-top: 6px; }
+.t p { margin: 8px 0 0; color: var(--muted); font-size: 13px; }
+
+.ledgers { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.ledger { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.ledger h2 { padding: 12px 14px 8px; }
+.item { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 8px 14px; border-top: 1px solid var(--line); }
+.item .k { min-width: 0; }
+.item .v { font: 500 14px var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+.item .v small { display: block; font-size: 11px; color: var(--muted); font-weight: 400; }
+.live { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-left: 6px; vertical-align: middle; }
+.up { color: var(--good); } .down { color: var(--bad); }
+.legend { color: var(--muted); font-size: 12px; margin: 0; max-width: 90ch; }
+
+.watch { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; }
+.tablewrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; min-width: 560px; }
+th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+td { padding: 7px 10px; border-bottom: 1px solid var(--line); font: 13px var(--font-mono); font-variant-numeric: tabular-nums; }
+th.x, td.x { text-align: right; }
+tr.sel td { background: var(--accent-soft); }
+td button { padding: 2px 8px; font-size: 12px; }
+td .sym { font-weight: 600; }
+
+@media (max-width: 1000px) {
+  .ledgers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pillars { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .score { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 620px) {
+  .ledgers, .target-grid { grid-template-columns: minmax(0, 1fr); }
+  .company .sub { text-align: left; }
+  #ticker, #price { width: 88px; }
+}
+</style>
+
+<div class="wrap">
+  <header class="bar">
+    <h1>Pillars Tracker</h1>
+    <form class="controls" id="form" autocomplete="off">
+      <div class="field">
+        <label for="ticker">Ticker</label>
+        <input id="ticker" type="text" maxlength="8" spellcheck="false" placeholder="AAPL" aria-label="Ticker symbol">
+      </div>
+      <button id="go" class="primary" type="submit">Analyze</button>
+      <div class="field">
+        <label for="price">Price</label>
+        <input id="price" type="number" inputmode="decimal" step="0.01" min="0.01" aria-label="Price override">
+      </div>
+      <button id="reprice" type="button">Use fetched price</button>
+      <button id="refresh" type="button">Refresh data</button>
+      <button id="theme" type="button" aria-label="Toggle light and dark theme">Theme</button>
+    </form>
+  </header>
+
+  <p class="status" id="status" aria-live="polite"></p>
+
+  <div class="company" id="company"></div>
+
+  <section class="score" aria-label="Pillar scorecard">
+    <div class="verdict" id="verdict"></div>
+    <div class="pillars" id="pillars"></div>
+  </section>
+
+  <section class="targets" aria-label="Price needed to pass">
+    <h2>Price needed to pass the two valuation pillars</h2>
+    <div class="target-grid" id="targets"></div>
+  </section>
+
+  <section class="ledgers" id="ledgers" aria-label="Metrics"></section>
+  <p class="legend"><span class="live"></span> moves with the price in the Price box. Everything else comes from the last fetch. Valuation uses market cap from the last fetch scaled by price, so it stays consistent if you type a different price.</p>
+
+  <section class="watch" aria-label="Saved tickers">
+    <h2>Saved tickers</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Ticker</th><th>Company</th><th class="x">Price</th><th class="x">Pillars</th><th class="x">5Yr P/E</th><th class="x">5Yr P/FCF</th><th>Fetched</th><th></th></tr></thead>
+        <tbody id="watchrows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <p class="legend">Data comes from stockanalysis.com through your Firecrawl connector (4 page reads, about 4 credits per ticker). It covers US-listed stocks. Free pages show five fiscal years, so "5 year" growth pillars compare the latest trailing figure with the oldest of those five years. Saved tickers live in this browser only. Not investment advice.</p>
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var SERVER = "Firecrawl", STOREKEY = "pillars-tracker-v1";
+  var mcp = null, store = {}, cur = null, price = null;
+
+  /* ---------- embedded example: MSFT, read from stockanalysis.com on Oct 12 2026 (financial rows in $ millions) ---------- */
+  var M = 1e6;
+  var SAMPLE = {
+    t: "MSFT", name: "Microsoft Corporation", ccy: "USD", fetched: "2026-10-12",
+    price: 541.15, asOf: "At close: Oct 12, 2026, 4:00 PM EDT",
+    fy: ["FY 2026", "FY 2025", "FY 2024", "FY 2023", "FY 2022"],
+    rev: [331839, 281724, 245122, 211915, 198270].map(function (v) { return v * M; }),
+    ni: [133749, 101832, 88136, 72361, 72738].map(function (v) { return v * M; }),
+    fcf: [66987, 71611, 74071, 59475, 65149].map(function (v) { return v * M; }),
+    sh: [7453, 7465, 7469, 7472, 7540].map(function (v) { return v * M; }),
+    pm: [40.30, 36.15, 35.96, 34.15, 36.69],
+    roic: [29.25, 32.48, 38.47, 45.60, 61.87],
+    tl: 315989 * M, tcl: 168825 * M,
+    ttm: { rev: 331.84e9, ni: 133.75e9, fcf: 66.99e9, eps: 17.95, dps: 3.92, gm: 67.94, pm: 40.31 },
+    r: { p0: 535.07, mcap0: 4018334 * M, ev0: 4070304 * M, fpe: 27.08, peg: 1.72, roe: 34.04, roa: 14.09 },
+    ma50: 501.93, ma200: 434.26
+  };
+
+  /* ---------- formatting ---------- */
+  var CCY = { USD: "$", EUR: "€", GBP: "£", CAD: "C$", JPY: "¥" };
+  function sym() { return cur ? (CCY[cur.ccy] || (cur.ccy + " ")) : "$"; }
+  function money(v) {
+    if (v == null || !isFinite(v)) return "n/a";
+    var s = v < 0 ? "-" : "", a = Math.abs(v), u = "";
+    if (a >= 1e12) { a /= 1e12; u = "T"; } else if (a >= 1e9) { a /= 1e9; u = "B"; } else if (a >= 1e6) { a /= 1e6; u = "M"; } else { u = ""; }
+    return s + sym() + (u ? a.toFixed(2) : a.toFixed(0)) + u;
+  }
+  function x2(v) { return v == null || !isFinite(v) ? "n/a" : v.toFixed(2); }
+  function pct(v) { return v == null || !isFinite(v) ? "n/a" : v.toFixed(2) + "%"; }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function avg(a) {
+    var v = a.filter(function (x) { return x != null && isFinite(x); });
+    return v.length ? v.reduce(function (s, x) { return s + x; }, 0) / v.length : null;
+  }
+  function oldest(a) { for (var i = a.length - 1; i >= 0; i--) if (a[i] != null && isFinite(a[i])) return a[i]; return null; }
+  function newest(a) { for (var i = 0; i < a.length; i++) if (a[i] != null && isFinite(a[i])) return a[i]; return null; }
+
+  /* ---------- computation ---------- */
+  function compute(s, p) {
+    var f = p / s.r.p0;
+    var mcap = s.r.mcap0 * f, ev = mcap + (s.r.ev0 - s.r.mcap0);
+    var ni5 = avg(s.ni), fcf5 = avg(s.fcf), t = s.ttm;
+    var n = s.ni.filter(function (x) { return x != null; }).length;
+    var c = {
+      p: p, f: f, mcap: mcap, ev: ev, ni5: ni5, fcf5: fcf5, n: n,
+      pe: t.eps > 0 ? p / t.eps : null,
+      pe5: ni5 > 0 ? mcap / ni5 : null,
+      ps: t.rev > 0 ? mcap / t.rev : null,
+      pfcf: t.fcf > 0 ? mcap / t.fcf : null,
+      pfcf5: fcf5 > 0 ? mcap / fcf5 : null,
+      fpe: s.r.fpe != null ? s.r.fpe * f : null,
+      peg: s.r.peg != null ? s.r.peg * f : null,
+      evE: t.ni > 0 ? ev / t.ni : null,
+      evF: t.fcf > 0 ? ev / t.fcf : null,
+      evE5: ni5 > 0 ? ev / ni5 : null,
+      evF5: fcf5 > 0 ? ev / fcf5 : null,
+      dy: t.dps != null ? t.dps / p * 100 : null,
+      roic5: avg(s.roic),
+      pm5: avg(s.pm),
+      shChg: (newest(s.sh) != null && oldest(s.sh) != null && s.sh.filter(function (x) { return x != null; }).length > 1) ? (newest(s.sh) / oldest(s.sh) - 1) * 100 : null,
+      fcfG: oldest(s.fcf) != null && t.fcf != null ? t.fcf - oldest(s.fcf) : null,
+      niG: oldest(s.ni) != null && t.ni != null ? t.ni - oldest(s.ni) : null,
+      revG: oldest(s.rev) != null && t.rev != null ? t.rev - oldest(s.rev) : null,
+      ltl: s.tl != null && s.tcl != null ? s.tl - s.tcl : null
+    };
+    c.ltlF = c.ltl != null && fcf5 > 0 ? c.ltl / fcf5 : null;
+    return c;
+  }
+
+  function pillars(s, c) {
+    var y0 = s.fy[s.fy.length - 1] || "oldest year";
+    function pl(rule, val, pass, note, live) { return { rule: rule, val: val, pass: pass, note: note, live: live }; }
+    var g = function (v) { return v == null ? null : v > 0; };
+    return [
+      pl("5Yr P/E Ratio < 22.5", c.pe5 != null ? x2(c.pe5) : (c.ni5 != null ? "n/m" : "n/a"), c.pe5 != null ? c.pe5 < 22.5 : (c.ni5 != null ? false : null), "Market cap / avg net income (" + c.n + " yrs)", true),
+      pl("5Yr ROIC > 9%", pct(c.roic5), c.roic5 != null ? c.roic5 > 9 : null, "Average of reported years"),
+      pl("Shares Outstanding falling", c.shChg != null ? (c.shChg > 0 ? "+" : "") + c.shChg.toFixed(2) + "%" : "n/a", c.shChg != null ? c.shChg < 0 : null, "Diluted, " + y0 + " to latest"),
+      pl("Cash Flow Growth 5Yr", c.fcfG != null ? (c.fcfG > 0 ? "+" : "") + money(c.fcfG) : "n/a", g(c.fcfG), "Free cash flow, TTM vs " + y0),
+      pl("Net Income Growth 5Yr", c.niG != null ? (c.niG > 0 ? "+" : "") + money(c.niG) : "n/a", g(c.niG), "TTM vs " + y0),
+      pl("Revenue Growth 5Yr", c.revG != null ? (c.revG > 0 ? "+" : "") + money(c.revG) : "n/a", g(c.revG), "TTM vs " + y0),
+      pl("LTL / 5Yr FCF < 5", c.ltl != null && c.fcf5 != null ? (c.fcf5 > 0 ? x2(c.ltlF) : "n/m") : "n/a", c.ltl != null && c.fcf5 != null ? (c.fcf5 > 0 ? c.ltlF < 5 : false) : null, "Long-term liabilities / avg FCF"),
+      pl("5Yr Price to FCF < 22.5", c.pfcf5 != null ? x2(c.pfcf5) : (c.fcf5 != null ? "n/m" : "n/a"), c.pfcf5 != null ? c.pfcf5 < 22.5 : (c.fcf5 != null ? false : null), "Market cap / avg FCF", true)
+    ];
+  }
+
+  /* ---------- rendering ---------- */
+  function renderAll() {
+    var s = cur;
+    if (!s) return;
+    var c = compute(s, price), ps = pillars(s, c);
+    var passed = ps.filter(function (q) { return q.pass === true; }).length;
+    var failed = ps.filter(function (q) { return q.pass === false; }).length;
+    var unknown = 8 - passed - failed;
+
+    $("company").innerHTML = '<h2 class="name">' + esc(s.name) + '<span class="sym">' + esc(s.t) + '</span></h2>' +
+      '<span class="px">' + sym() + price.toFixed(2) + '</span>' +
+      '<span class="sub">' + (esc(s.asOf || "") ) + (s.asOf ? " · " : "") + 'fundamentals fetched ' + esc(s.fetched) + '</span>';
+
+    var tag = passed === 8 ? ["All pillars pass", "good"] : failed === 0 ? ["Data incomplete", "bad"] : ["Fails " + failed + (failed > 1 ? " pillars" : " pillar"), "bad"];
+    $("verdict").innerHTML = '<h2>Pillars passed</h2><div class="big">' + passed + '<small> / 8</small></div>' +
+      '<span class="tag" style="background:var(--' + tag[1] + '-soft);color:var(--' + tag[1] + ')">' + tag[0] + '</span>' +
+      '<p>' + (unknown ? unknown + " pillar" + (unknown > 1 ? "s" : "") + " could not be computed from the data available. " : "") +
+      (passed === 8 ? "Business quality and price both clear the bar." : (ps[0].pass === false || ps[7].pass === false) && ps.slice(1, 7).every(function (q) { return q.pass !== false; }) ? "Quality pillars pass. Only price-based pillars fail." : "") + '</p>';
+
+    $("pillars").innerHTML = ps.map(function (q) {
+      var st = q.pass === true ? "pass" : q.pass === false ? "fail" : "na";
+      return '<div class="pillar ' + st + '"><div class="rule">' + q.rule + (q.live ? '<span class="live" title="Moves with price"></span>' : "") + '</div>' +
+        '<div class="row"><span class="val">' + esc(q.val) + '</span><span class="chip" aria-label="' + (st === "pass" ? "Pass" : st === "fail" ? "Fail" : "No data") + '">' + (st === "pass" ? "&#10003;" : st === "fail" ? "&#10005;" : "?") + '</span></div>' +
+        '<div class="note">' + esc(q.note) + '</div></div>';
+    }).join("");
+
+    $("targets").innerHTML = target("5Yr P/E Ratio", c.ni5, c) + target("5Yr Price to Free Cash Flow", c.fcf5, c);
+    renderLedgers(s, c);
+  }
+
+  function target(label, avgVal, c) {
+    if (!(avgVal > 0)) return '<div class="t"><h3>' + label + '</h3><p>Not meaningful: the five-year average is zero or negative.</p></div>';
+    var cur5 = c.mcap / avgVal;
+    var need = c.p * 22.5 / cur5, max = Math.max(c.p, need) * 1.1;
+    var gap = (need / c.p - 1) * 100, ok = cur5 < 22.5;
+    return '<div class="t"><h3>' + label + '<span>now ' + x2(cur5) + ' &middot; limit 22.50</span></h3>' +
+      '<div class="track"><div class="fill" style="width:' + (need / max * 100).toFixed(2) + '%"></div><div class="mark" style="left:' + (c.p / max * 100).toFixed(2) + '%" title="Current price"></div></div>' +
+      '<div class="scale"><span>0</span><span>Pass below ' + sym() + need.toFixed(2) + '</span><span>' + sym() + max.toFixed(0) + '</span></div>' +
+      '<p>' + (ok ? "Passing. Price is " + Math.abs(gap).toFixed(1) + "% under the limit." :
+        'Price must fall <strong class="mono down">' + Math.abs(gap).toFixed(1) + '%</strong> to ' + sym() + need.toFixed(2) + ' to pass.') + '</p></div>';
+  }
+
+  function renderLedgers(s, c) {
+    var t = s.ttm;
+    var L = [
+      { title: "Valuation and earnings", rows: [
+        ["Market Cap", money(c.mcap), 1], ["Revenue (TTM)", money(t.rev)], ["Net Income (TTM)", money(t.ni)], ["5Yr Avg Net Income", money(c.ni5)],
+        ["P/E (TTM)", x2(c.pe), 1], ["5Yr P/E", x2(c.pe5), 1], ["PS Ratio", x2(c.ps), 1], ["PEG Ratio", x2(c.peg), 1],
+        ["Profit Margin (TTM)", pct(t.pm)], ["5Yr Profit Margin", pct(c.pm5)], ["Gross Margin (TTM)", pct(t.gm)]
+      ]},
+      { title: "Cash flow and capital", rows: [
+        ["Free Cash Flow (TTM)", money(t.fcf)], ["5Yr Avg FCF", money(c.fcf5)], ["Price/FCF (TTM)", x2(c.pfcf), 1], ["5Yr Price/FCF", x2(c.pfcf5), 1],
+        ["Dividend Per Share", t.dps != null ? sym() + t.dps.toFixed(2) : "n/a"], ["Dividend Yield", pct(c.dy), 1],
+        ["Enterprise Value", money(c.ev), 1], ["5Yr Avg ROIC", pct(c.roic5)], ["Return on Equity", pct(s.r.roe)], ["Return on Assets", pct(s.r.roa)],
+        ["Long-Term Liabilities", money(c.ltl)]
+      ]},
+      { title: "Forward and enterprise", rows: [
+        ["Forward P/E", x2(c.fpe), 1], ["EV/Earnings", x2(c.evE), 1], ["EV/FCF", x2(c.evF), 1], ["EV/5Yr Earnings", x2(c.evE5), 1], ["EV/5Yr FCF", x2(c.evF5), 1],
+        ["Shares change, " + (s.fy[s.fy.length - 1] || "oldest") + " to latest", c.shChg == null ? "n/a" : (c.shChg > 0 ? "+" : "") + c.shChg.toFixed(2) + "%"]
+      ]},
+      { title: "Trend (moving averages)", ma: [["50 Day MA", s.ma50], ["200 Day MA", s.ma200]] }
+    ];
+    $("ledgers").innerHTML = L.map(function (g) {
+      var rows;
+      if (g.ma) {
+        rows = g.ma.map(function (m) {
+          if (m[1] == null) return '<div class="item"><span class="k">' + m[0] + '</span><span class="v">n/a</span></div>';
+          var d = (c.p / m[1] - 1) * 100;
+          return '<div class="item"><span class="k">' + m[0] + '</span><span class="v ' + (d >= 0 ? "up" : "down") + '">' + (d >= 0 ? "&uarr; " : "&darr; ") + sym() + m[1].toFixed(2) + '<small>price ' + (d >= 0 ? "+" : "") + d.toFixed(1) + '%</small></span></div>';
+        }).join("");
+      } else {
+        rows = g.rows.map(function (r) {
+          return '<div class="item"><span class="k">' + r[0] + (r[2] ? '<span class="live"></span>' : "") + '</span><span class="v">' + r[1] + '</span></div>';
+        }).join("");
+      }
+      return '<div class="ledger"><h2>' + g.title + '</h2>' + rows + '</div>';
+    }).join("");
+  }
+
+  function renderWatch() {
+    var keys = Object.keys(store).sort();
+    $("watchrows").innerHTML = keys.length ? keys.map(function (k) {
+      var s = store[k], c = compute(s, s.price), ps = pillars(s, c);
+      var n = ps.filter(function (q) { return q.pass === true; }).length;
+      var pr = (CCY[s.ccy] || s.ccy + " ") + s.price.toFixed(2);
+      return '<tr class="' + (cur && cur.t === k ? "sel" : "") + '"><td><span class="sym">' + esc(k) + '</span></td><td style="font-family:var(--font-sans)">' + esc(s.name) + '</td>' +
+        '<td class="x">' + pr + '</td><td class="x ' + (n === 8 ? "up" : "") + '">' + n + '/8</td><td class="x">' + x2(c.pe5) + '</td><td class="x">' + x2(c.pfcf5) + '</td><td>' + esc(s.fetched) + '</td>' +
+        '<td class="x"><button type="button" data-open="' + esc(k) + '">Open</button> <button type="button" data-del="' + esc(k) + '" aria-label="Remove ' + esc(k) + '">&times;</button></td></tr>';
+    }).join("") : '<tr><td colspan="8" style="color:var(--muted);font-family:var(--font-sans)">No saved tickers. Enter a symbol above and press Analyze.</td></tr>';
+  }
+
+  function say(msg, bad) { var e = $("status"); e.textContent = msg; e.className = "status" + (bad ? " err" : ""); }
+
+  function select(s) {
+    cur = s; price = s.price;
+    $("ticker").value = s.t; $("price").value = price.toFixed(2);
+    renderAll(); renderWatch();
+  }
+
+  /* ---------- persistence ---------- */
+  function load() { try { var o = JSON.parse(localStorage.getItem(STOREKEY)); if (o && typeof o === "object") return o; } catch (e) {} return {}; }
+  function save() { try { localStorage.setItem(STOREKEY, JSON.stringify(store)); } catch (e) {} }
+
+  /* ---------- fetching and parsing ---------- */
+  function scrape(url, fresh) {
+    return mcp.callTool(SERVER, "firecrawl_scrape", {
+      url: url, formats: ["markdown"], onlyMainContent: true, maxAge: fresh ? 0 : 3600000,
+      objective: "Read public financial statement tables for a stock tracker page"
+    }, { cache: false }).then(function (r) {
+      var d = r && r.payload;
+      if (typeof d === "string") { try { d = JSON.parse(d); } catch (e) { return d; } }
+      return d && typeof d.markdown === "string" ? d.markdown : "";
+    });
+  }
+  function tables(md) {
+    var map = {};
+    md.split("\n").forEach(function (l) {
+      if (l.charAt(0) !== "|") return;
+      var cells = l.split("|").slice(1, -1).map(function (x) { return x.trim(); });
+      if (cells.length < 2) return;
+      var k = cells[0].replace(/\[([^\]]*)\]\([^)]*\)/g, "$1").split("<br>")[0].trim();
+      if (!k || /^-+$/.test(k)) return;
+      if (k === "Fiscal Year") { if (!map.__hdr) map.__hdr = cells.slice(1); return; }
+      if (k === "Period Ending") return;
+      if (!(k in map)) map[k] = cells.slice(1);
+    });
+    return map;
+  }
+  function num(str) {
+    if (str == null) return null;
+    var s = String(str).replace(/\[([^\]]*)\]\([^)]*\)/g, "$1").replace(/[$€£¥,%\s]/g, "");
+    if (!s || s === "-" || /^[A-Za-z]+$/.test(s)) return null;
+    var m = 1, last = s.charAt(s.length - 1);
+    if (last === "T") { m = 1e12; s = s.slice(0, -1); } else if (last === "B") { m = 1e9; s = s.slice(0, -1); } else if (last === "M") { m = 1e6; s = s.slice(0, -1); } else if (last === "K") { m = 1e3; s = s.slice(0, -1); }
+    var v = parseFloat(s);
+    return isFinite(v) ? v * m : null;
+  }
+  // FY columns of a financial table row, in millions converted to full units
+  function fyRow(map, label, mult) {
+    var row = map[label], hdr = map.__hdr;
+    if (!row || !hdr) return null;
+    var out = [];
+    for (var i = 0; i < hdr.length; i++) if (/^FY/.test(hdr[i])) { var v = num(row[i]); out.push(v == null ? null : v * (mult || 1)); }
+    return out.length ? out : null;
+  }
+  function fyLabels(map) { return (map.__hdr || []).filter(function (h) { return /^FY/.test(h); }); }
+  function first(map, label) { return map[label] ? num(map[label][0]) : null; }
+
+  function build(tk, st, ra, inc, bal) {
+    var cm = /·[^\n]*Price[^\n]*·\s*([A-Z]{3})\n/.exec(st), pm = /Compare\n\n([\d,]+(?:\.\d+)?)\n/.exec(st);
+    var hm = cm && pm ? [null, cm[1], pm[1]] : null;
+    var nm = /\n\n([^\n\[\]!]+?) \(([A-Z0-9.\-]+)\)\n\n/.exec(st);
+    if (!hm || !nm) throw { code: "not_found" };
+    var S = tables(st), R = tables(ra), I = tables(inc), B = tables(bal);
+    var ni = fyRow(I, "Net Income", 1e6);
+    if (!ni) throw { code: "no_financials" };
+    var asOf = /\n\n((?:At close: |After-hours: |Pre-market: )?[A-Z][a-z]{2} \d{1,2}, \d{4}, \d{1,2}:\d{2} [AP]M [A-Z]{2,4}[^\n]*)\n/.exec(st);
+    var p = parseFloat(hm[2].replace(/,/g, ""));
+    var p0 = first(R, "Last Close Price"), mc0 = first(R, "Market Capitalization"), ev0 = first(R, "Enterprise Value");
+    var mcapStat = first(S, "Market Cap"), evStat = first(S, "Enterprise Value");
+    var mcap0 = mc0 != null ? mc0 * 1e6 : mcapStat, ev0f = ev0 != null ? ev0 * 1e6 : evStat;
+    if (mcap0 == null) throw { code: "no_financials" };
+    if (ev0f == null) ev0f = mcap0;
+    var ratiosPrice = p0 != null && mc0 != null ? p0 : p;
+    // ROIC per fiscal year from the ratios page
+    var roic = null;
+    if (R["Return on Invested Capital (ROIC)"] && R.__hdr) {
+      roic = [];
+      for (var i = 0; i < R.__hdr.length; i++) if (/^FY/.test(R.__hdr[i])) roic.push(num(R["Return on Invested Capital (ROIC)"][i]));
+    }
+    var fcfYears = fyRow(I, "Free Cash Flow", 1e6) || [];
+    return {
+      t: tk, name: nm[1].trim(), ccy: hm[1], fetched: new Date().toISOString().slice(0, 10),
+      price: p, asOf: asOf ? asOf[1] : "",
+      fy: fyLabels(I).slice(0, 5),
+      rev: (fyRow(I, "Revenue", 1e6) || []).slice(0, 5), ni: ni.slice(0, 5), fcf: fcfYears.slice(0, 5),
+      sh: (fyRow(I, "Shares Outstanding (Diluted)", 1e6) || []).slice(0, 5),
+      pm: (fyRow(I, "Profit Margin") || []).slice(0, 5),
+      roic: (roic || []).slice(0, 5),
+      tl: (fyRow(B, "Total Liabilities", 1e6) || [null])[0],
+      tcl: (fyRow(B, "Total Current Liabilities", 1e6) || [null])[0],
+      ttm: { rev: first(S, "Revenue"), ni: first(S, "Net Income"), fcf: first(S, "Free Cash Flow"), eps: first(S, "Earnings Per Share (EPS)"), dps: first(S, "Dividend Per Share"), gm: first(S, "Gross Margin"), pm: first(S, "Profit Margin") },
+      r: { p0: ratiosPrice, mcap0: mcap0, ev0: ev0f, fpe: first(R, "Forward PE"), peg: first(R, "PEG Ratio"), roe: first(R, "Return on Equity (ROE)"), roa: first(R, "Return on Assets (ROA)") },
+      ma50: first(S, "50-Day Moving Average"), ma200: first(S, "200-Day Moving Average")
+    };
+  }
+
+  function errMsg(err, tk) {
+    var c = err && err.code;
+    return c === "not_found" ? "No data for " + tk + ". Only US-listed stocks are supported (not ETFs or foreign listings)."
+      : c === "no_financials" ? "Found " + tk + " but its financial statements could not be read."
+      : c === "server_not_connected" ? "Add the Firecrawl connector in claude.ai Settings → Connectors to fetch tickers."
+      : c === "needs_reauth" ? "Reconnect Firecrawl in claude.ai Settings → Connectors, then try again."
+      : c === "not_in_manifest" || c === "approval_required" ? "Firecrawl is not allowed for this page. Allow it from the artifact's Permissions menu."
+      : c === "tool_error" ? "Firecrawl could not load the pages: " + (err.message || "tool error")
+      : "Could not fetch " + tk + " (" + (c || "unknown error") + "). Try again in a moment.";
+  }
+
+  var busy = false;
+  function analyze(tk) {
+    tk = (tk || "").trim().toUpperCase();
+    if (!/^[A-Z][A-Z0-9.\-]{0,7}$/.test(tk)) { say("Enter a ticker symbol such as AAPL or BRK.B.", true); return; }
+    if (!mcp) { say("Fetching needs the Firecrawl connector. Saved tickers below still open.", true); return; }
+    if (busy) return;
+    busy = true; $("go").disabled = true; $("refresh").disabled = true; $("go").textContent = "Fetching…";
+    say("Reading " + tk + " statistics, ratios, income statement and balance sheet…");
+    var base = "https://stockanalysis.com/stocks/" + tk.toLowerCase() + "/";
+    Promise.all([
+      scrape(base + "statistics/", true), scrape(base + "financials/ratios/?p=annual", true),
+      scrape(base + "financials/income-statement/?p=annual", false),
+      scrape(base + "financials/balance-sheet/?p=annual", false)
+    ]).then(function (md) {
+      var s = build(tk, md[0], md[1], md[2], md[3]);
+      store[tk] = s; save(); select(s);
+      say("Loaded " + s.name + ". Saved to this browser.");
+    }).catch(function (err) {
+      say(errMsg(err, tk), true);
+    }).then(function () {
+      busy = false; $("go").disabled = false; $("refresh").disabled = false; $("go").textContent = "Analyze";
+    });
+  }
+
+  /* ---------- events ---------- */
+  $("form").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var tk = $("ticker").value.trim().toUpperCase();
+    if (store[tk] && !mcp) { select(store[tk]); say("Showing saved data for " + tk + "."); return; }
+    analyze(tk);
+  });
+  $("refresh").addEventListener("click", function () { if (cur) analyze(cur.t); });
+  $("price").addEventListener("input", function () {
+    var v = parseFloat($("price").value);
+    if (isFinite(v) && v > 0 && cur) { price = v; renderAll(); }
+  });
+  $("reprice").addEventListener("click", function () { if (cur) { price = cur.price; $("price").value = price.toFixed(2); renderAll(); } });
+  $("watchrows").addEventListener("click", function (e) {
+    var o = e.target.closest("[data-open]"), d = e.target.closest("[data-del]");
+    if (o) { var s = store[o.getAttribute("data-open")]; if (s) { select(s); say("Showing saved data for " + s.t + "."); } }
+    if (d) {
+      var k = d.getAttribute("data-del"); delete store[k]; save();
+      if (cur && cur.t === k) { var left = Object.keys(store); if (left.length) select(store[left[0]]); else { cur = null; $("company").innerHTML = $("verdict").innerHTML = $("pillars").innerHTML = $("targets").innerHTML = $("ledgers").innerHTML = ""; } }
+      renderWatch();
+    }
+  });
+  $("theme").addEventListener("click", function () {
+    var r = document.documentElement, t = r.getAttribute("data-theme");
+    var dark = t ? t === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+    r.setAttribute("data-theme", dark ? "light" : "dark");
+  });
+
+  /* ---------- boot ---------- */
+  store = load();
+  if (!store.MSFT && !Object.keys(store).length) { store.MSFT = SAMPLE; save(); }
+  var keys = Object.keys(store);
+  select(store[store.MSFT ? "MSFT" : keys[0]]);
+  say("Showing a saved example. Type any US ticker and press Analyze to fetch it.");
+  if (window.claude && window.claude.use) {
+    window.claude.use("mcp").then(function (m) {
+      mcp = m;
+      if (!m) { say("Showing saved data. Fetching new tickers needs the Firecrawl connector, which is not available in this view."); $("go").textContent = "Open saved"; }
+    }, function () {});
+  }
+})();
+</script>
