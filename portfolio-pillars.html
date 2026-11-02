@@ -74,6 +74,24 @@ input[type="search"] { font: 14px var(--font-sans); color: var(--fg); background
 .legend i { width: 12px; height: 12px; border-radius: 3px; flex: none; }
 .legend b { font: 500 13px var(--font-mono); margin-left: auto; white-space: nowrap; }
 
+.perf { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; }
+.perf-grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+.perf svg { width: 100%; height: auto; display: block; }
+.perf svg text { fill: var(--muted); font: 11px var(--font-mono); }
+.perf table { min-width: 0; }
+.perf td, .perf th.plain { padding: 6px 8px; }
+.perf td { font: 13px var(--font-mono); font-variant-numeric: tabular-nums; }
+.perf td:first-child { font-family: var(--font-sans); }
+.perf th.plain { font-size: 11px; }
+.perf .tw { overflow-x: auto; }
+.perf th.x { text-align: right; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; padding: 6px 10px; font-size: 12px; background: var(--surface); }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.perf .note { margin: 0; color: var(--muted); font-size: 13px; }
+.perf .note b { color: var(--fg); font-weight: 600; }
+@media (max-width: 900px) { .perf-grid { grid-template-columns: minmax(0, 1fr); } }
 .tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .tools .grow { flex: 1; }
 .tablewrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
@@ -141,6 +159,17 @@ tr.detail td { background: var(--surface-2); padding: 14px 16px; }
     <div class="health-head"><h2>Pillar health by market value</h2><span id="healthSub"></span></div>
     <div class="stack" id="stack" role="img" aria-label="Share of invested value by pillars passed"></div>
     <div class="legend" id="legend"></div>
+  </section>
+
+  <section class="perf" aria-label="Pillar score versus performance">
+    <div class="health-head">
+      <h2>Does the pillar score track performance?</h2>
+      <div class="seg" role="group" aria-label="Performance measure">
+        <button type="button" data-metric="ytd" aria-pressed="true">YTD vs S&amp;P 500</button>
+        <button type="button" data-metric="gain" aria-pressed="false">Gain since purchase</button>
+      </div>
+    </div>
+    <div id="perfBody"></div>
   </section>
 
   <section class="tools">
@@ -518,7 +547,86 @@ tr.detail td { background: var(--surface-2); padding: 14px 16px; }
       $("th-" + k).setAttribute("aria-sort", k === sortKey ? (sortDir > 0 ? "ascending" : "descending") : "none");
     });
   }
-  function renderAll() { renderTiles(); renderHealth(); renderRows(); syncButtons(); }
+  /* ---------- score vs performance ---------- */
+  var perfMetric = "ytd";
+  function median(a) { var s = a.slice().sort(function (x, y) { return x - y; }), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; }
+  function ranks(a) {
+    var idx = a.map(function (v, i) { return [v, i]; }).sort(function (x, y) { return x[0] - y[0]; }), r = new Array(a.length), i = 0;
+    while (i < idx.length) { var j = i; while (j + 1 < idx.length && idx[j + 1][0] === idx[i][0]) j++; var rk = (i + j) / 2 + 1; for (var k = i; k <= j; k++) r[idx[k][1]] = rk; i = j + 1; }
+    return r;
+  }
+  function spearman(x, y) {
+    var rx = ranks(x), ry = ranks(y), mx = avg(rx), my = avg(ry), sxy = 0, sxx = 0, syy = 0;
+    for (var i = 0; i < rx.length; i++) { sxy += (rx[i] - mx) * (ry[i] - my); sxx += (rx[i] - mx) * (rx[i] - mx); syy += (ry[i] - my) * (ry[i] - my); }
+    return sxx && syy ? sxy / Math.sqrt(sxx * syy) : null;
+  }
+  function hash(s) { var h = 0; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return (Math.abs(h) % 1000) / 1000; }
+  function perfData() {
+    var d = [];
+    positions.forEach(function (p) {
+      var r = result(p), y = perfMetric === "ytd" ? p.ytd : p.gainPct;
+      if (r && y != null) d.push({ sym: p.sym, score: r.n, y: y });
+    });
+    return d;
+  }
+  function renderPerf() {
+    var body = $("perfBody"), d = perfData(), label = perfMetric === "ytd" ? "YTD performance vs the S&P 500" : "gain since purchase";
+    Array.prototype.forEach.call(document.querySelectorAll("[data-metric]"), function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-metric") === perfMetric)); });
+    if (d.length < 3) {
+      body.innerHTML = '<p class="note">Analyze at least a few stocks and this view compares their pillar scores with ' + label + '. ' + d.length + ' analyzed so far.</p>';
+      return;
+    }
+    /* symmetric-log y scale so a few huge winners do not flatten everything else */
+    var T = function (v) { return (v < 0 ? -1 : 1) * Math.log10(1 + Math.abs(v) / 25); };
+    var W = 620, H = 270, L = 52, R = 12, Tp = 12, B = 34;
+    var ys = d.map(function (o) { return T(o.y); }), lo = Math.min.apply(null, ys.concat([0])), hi = Math.max.apply(null, ys.concat([0]));
+    var pad = (hi - lo) * 0.06 || 0.2; lo -= pad; hi += pad;
+    var X = function (s) { return L + 14 + s * (W - L - R - 28) / 8; };
+    var Y = function (v) { return Tp + (hi - T(v)) / (hi - lo) * (H - Tp - B); };
+    var ymin = Math.min.apply(null, d.map(function (o) { return o.y; })), ymax = Math.max.apply(null, d.map(function (o) { return o.y; }));
+    var ticks = [-100, -50, 0, 50, 100, 250, 500, 1000, 2000].filter(function (t) { return t >= ymin - 20 && t <= ymax * 1.15 + 20 || t === 0; });
+    var g = ticks.map(function (t) {
+      return '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(t).toFixed(1) + '" y2="' + Y(t).toFixed(1) + '" stroke="' + (t === 0 ? "var(--muted)" : "var(--line)") + '" stroke-width="' + (t === 0 ? 1.5 : 1) + '"/>' +
+        '<text x="' + (L - 6) + '" y="' + (Y(t) + 4).toFixed(1) + '" text-anchor="end">' + (t > 0 ? "+" : "") + t + '%</text>';
+    }).join("");
+    var xl = "";
+    for (var s = 0; s <= 8; s++) xl += '<text x="' + X(s).toFixed(1) + '" y="' + (H - 16) + '" text-anchor="middle">' + s + '</text>';
+    xl += '<text x="' + ((L + W - R) / 2) + '" y="' + (H - 2) + '" text-anchor="middle">pillars passed</text>';
+    var dots = d.map(function (o) {
+      var cx = X(o.score + (hash(o.sym) - 0.5) * 0.56);
+      return '<circle cx="' + cx.toFixed(1) + '" cy="' + Y(o.y).toFixed(1) + '" r="4.5" fill="var(--accent)" fill-opacity=".8" stroke="var(--surface)" stroke-width="2"><title>' + esc(o.sym) + ": " + o.score + "/8 pillars, " + pc(o.y, 1) + '</title></circle>';
+    }).join("");
+    var meds = "";
+    for (var k = 0; k <= 8; k++) {
+      var vals = d.filter(function (o) { return o.score === k; }).map(function (o) { return o.y; });
+      if (vals.length) meds += '<line x1="' + (X(k) - 18).toFixed(1) + '" x2="' + (X(k) + 18).toFixed(1) + '" y1="' + Y(median(vals)).toFixed(1) + '" y2="' + Y(median(vals)).toFixed(1) + '" stroke="var(--fg)" stroke-width="2.5" stroke-linecap="round"><title>Median at ' + k + '/8: ' + pc(median(vals), 1) + ' (' + vals.length + ' stocks)</title></line>';
+    }
+    var svg = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Scatter of pillars passed against ' + label + '">' + g + xl + dots + meds + '</svg>';
+
+    var buckets = [["7 to 8", 7, 8], ["5 to 6", 5, 6], ["3 to 4", 3, 4], ["0 to 2", 0, 2]];
+    var rowsT = buckets.map(function (b) {
+      var v = d.filter(function (o) { return o.score >= b[1] && o.score <= b[2]; }).map(function (o) { return o.y; });
+      if (!v.length) return '<tr><td>' + b[0] + '</td><td class="x">0</td><td class="x muted">–</td><td class="x muted">–</td><td class="x muted">–</td></tr>';
+      var beat = v.filter(function (x) { return x > 0; }).length / v.length * 100;
+      return '<tr><td>' + b[0] + '</td><td class="x">' + v.length + '</td><td class="x ' + cls(median(v)) + '">' + pc(median(v), 1) + '</td><td class="x ' + cls(avg(v)) + '">' + pc(avg(v), 1) + '</td><td class="x">' + beat.toFixed(0) + '%</td></tr>';
+    }).join("");
+    var rho = spearman(d.map(function (o) { return o.score; }), d.map(function (o) { return o.y; }));
+    var a = rho == null ? null : Math.abs(rho);
+    var strength = a == null ? "cannot be measured" : a < 0.2 ? "little to no relationship" : a < 0.4 ? "a weak " + (rho > 0 ? "positive" : "negative") + " relationship" : a < 0.6 ? "a moderate " + (rho > 0 ? "positive" : "negative") + " relationship" : "a strong " + (rho > 0 ? "positive" : "negative") + " relationship";
+    var beatLbl = perfMetric === "ytd" ? "Beat S&amp;P" : "In profit";
+    var html = '<div class="perf-grid"><div>' + svg + '<p class="note">One dot per stock, with the heavy bar showing the median at each score. The vertical axis is a signed log scale so a few big winners do not flatten the rest.</p></div>' +
+      '<div><div class="tw"><table><thead><tr><th class="plain">Pillars</th><th class="plain x">Stocks</th><th class="plain x">Median</th><th class="plain x">Average</th><th class="plain x">' + beatLbl + '</th></tr></thead><tbody>' + rowsT + '</tbody></table></div>' +
+      '<p class="note" style="margin-top:12px">Rank correlation <b class="mono">' + (rho == null ? "n/a" : (rho > 0 ? "+" : "") + rho.toFixed(2)) + '</b> across <b>' + d.length + '</b> stocks: ' + strength + ' between pillars passed and ' + label + '.' +
+      (d.length < 30 ? " That is a small sample, so treat it as anecdotal. Analyze more stocks for a firmer read." : "") +
+      (perfMetric === "gain" ? " Gain since purchase is partly circular: stocks that already rose have higher P/Es, which lowers their valuation pillars." : "") + '</p></div></div>';
+    body.innerHTML = html;
+  }
+  document.addEventListener("click", function (e) {
+    var m = e.target.closest("[data-metric]");
+    if (m) { perfMetric = m.getAttribute("data-metric"); renderPerf(); }
+  });
+
+  function renderAll() { renderTiles(); renderHealth(); renderPerf(); renderRows(); syncButtons(); }
 
   /* ---------- events ---------- */
   document.addEventListener("click", function (e) {
