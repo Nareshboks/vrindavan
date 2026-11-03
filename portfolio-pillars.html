@@ -92,6 +92,11 @@ input[type="search"] { font: 14px var(--font-sans); color: var(--fg); background
 .perf .note { margin: 0; color: var(--muted); font-size: 13px; }
 .perf .note b { color: var(--fg); font-weight: 600; }
 @media (max-width: 900px) { .perf-grid { grid-template-columns: minmax(0, 1fr); } }
+.health .tw { overflow-x: auto; }
+.health table { min-width: 520px; }
+.health td { padding: 6px 10px; }
+.health td:first-child { font-family: var(--font-sans); }
+.health th.plain.x { text-align: right; }
 .tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .tools .grow { flex: 1; }
 .tablewrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
@@ -159,6 +164,7 @@ tr.detail td { background: var(--surface-2); padding: 14px 16px; }
     <div class="health-head"><h2>Pillar health by market value</h2><span id="healthSub"></span></div>
     <div class="stack" id="stack" role="img" aria-label="Share of invested value by pillars passed"></div>
     <div class="legend" id="legend"></div>
+    <div class="tw" id="healthTbl"></div>
   </section>
 
   <section class="perf" aria-label="Pillar score versus performance">
@@ -446,16 +452,27 @@ tr.detail td { background: var(--surface-2); padding: 14px 16px; }
   }
   function renderHealth() {
     var B = { hi: 0, mid: 0, lo2: 0, lo: 0, na: 0, nc: 0 }, tot = 0, done = 0, wsum = 0, wval = 0;
+    var A = { hi: [0, 0, 0], mid: [0, 0, 0], lo2: [0, 0, 0], lo: [0, 0, 0], na: [0, 0, 0] };
+    function acc(k, p) { A[k][0]++; A[k][1] += p.mv || 0; A[k][2] += p.cost || 0; }
     positions.forEach(function (p) {
       var v = Math.max(p.mv || 0, 0); if (!v) return;
       tot += v;
       var k = kind(p);
       if (k !== "stock") { B.nc += v; return; }
       var r = result(p);
-      if (!r) { B[snaps[p.sym] && snaps[p.sym].failed ? "nc" : "na"] += v; return; }
+      if (!r) { var nk = snaps[p.sym] && snaps[p.sym].failed ? "nc" : "na"; B[nk] += v; if (nk === "na") acc("na", p); return; }
       done++; wsum += r.n * v; wval += v;
-      if (r.n >= 7) B.hi += v; else if (r.n >= 5) B.mid += v; else if (r.n >= 3) B.lo2 += v; else B.lo += v;
+      var bk = r.n >= 7 ? "hi" : r.n >= 5 ? "mid" : r.n >= 3 ? "lo2" : "lo";
+      B[bk] += v; acc(bk, p);
     });
+    var trow = function (label, parts, strong) {
+      var n = 0, mv = 0, cost = 0;
+      parts.forEach(function (k) { n += A[k][0]; mv += A[k][1]; cost += A[k][2]; });
+      var g = mv - cost;
+      return '<tr' + (strong ? ' style="font-weight:600;background:var(--surface-2)"' : "") + '><td>' + label + '</td><td class="x">' + n + '</td><td class="x">' + usd(mv, 0) + '</td><td class="x">' + usd(cost, 0) + '</td><td class="x ' + cls(g) + '">' + usd(g, 0) + '</td><td class="x ' + cls(g) + '">' + (cost > 0 ? pc(g / cost * 100, 1) : "n/a") + '</td></tr>';
+    };
+    $("healthTbl").innerHTML = done ? '<table><thead><tr><th class="plain">Pillars passed</th><th class="plain x">Stocks</th><th class="plain x">Market value</th><th class="plain x">Cost basis</th><th class="plain x">Gain / loss</th><th class="plain x">Gain %</th></tr></thead><tbody>' +
+      trow("7 to 8", ["hi"]) + trow("5 to 6", ["mid"]) + trow("3 to 4", ["lo2"]) + trow("0 to 2", ["lo"]) + trow("0 to 4 combined", ["lo2", "lo"], true) + trow("Not analyzed yet", ["na"]) + '</tbody></table>' : "";
     var eligN = positions.filter(eligible).length;
     $("healthSub").textContent = done + " of " + eligN + " stocks analyzed" + (wval ? " · value-weighted score " + (wsum / wval).toFixed(1) + " / 8" : "");
     var rows = [["s78", "7 to 8 pillars", B.hi], ["s56", "5 to 6 pillars", B.mid], ["s34", "3 to 4 pillars", B.lo2], ["s02", "0 to 2 pillars", B.lo], ["sna", "Stocks not analyzed yet", B.na], ["snc", "ETFs, funds, warrants, no data", B.nc]];
