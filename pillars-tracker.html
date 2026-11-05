@@ -140,6 +140,20 @@ td .sym { font-weight: 600; }
 .ai-ask { display: flex; gap: 8px; padding: 12px 16px 14px; border-top: 1px solid var(--line); }
 .ai-ask input { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--surface-2); color: var(--fg); border-radius: 6px; padding: 9px 10px; font: 14px var(--font-sans); }
 .ai-note { color: var(--muted); font-size: 12px; margin: 0; }
+.w52 { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 18px; display: flex; flex-direction: column; gap: 12px; }
+.w52-head { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: baseline; justify-content: space-between; }
+.w52-head .big { font: 600 28px var(--font-mono); letter-spacing: -.01em; }
+.w52-head .lbl { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+.w52-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 18px; }
+.w52-stats div { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.w52-stats span { color: var(--muted); font-size: 12px; }
+.w52-stats b { font: 500 15px var(--font-mono); font-variant-numeric: tabular-nums; }
+.w52 svg { width: 100%; height: auto; display: block; }
+.w52 svg text { fill: var(--muted); font: 11px var(--font-mono); }
+.burry { background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; font-size: 13px; }
+.burry b { font-weight: 600; }
+.burry.hit { border-color: var(--warn); }
+.burry ul { margin: 6px 0 0; padding-left: 18px; }
 .tw2 { overflow-x: auto; margin-bottom: 6px; }
 table.comps { width: 100%; min-width: 0; border-collapse: collapse; font-size: 12px; }
 table.comps th { padding: 4px 6px; }
@@ -214,6 +228,8 @@ table.comps th.x, table.comps td.x { text-align: right; }
   <div class="main">
   <div class="company" id="company"></div>
 
+  <section class="w52" id="w52" aria-label="52-week performance"></section>
+
   <section class="score" aria-label="Pillar scorecard">
     <div class="verdict" id="verdict"></div>
     <div class="pillars" id="pillars"></div>
@@ -237,7 +253,7 @@ table.comps th.x, table.comps td.x { text-align: right; }
     </div>
   </section>
 
-  <p class="legend">Data comes from stockanalysis.com through your Firecrawl connector (4 page reads, about 4 credits per ticker). It covers US-listed stocks. Free pages show five fiscal years, so "5 year" growth pillars compare the latest trailing figure with the oldest of those five years. Saved tickers live in this browser only. Not investment advice.</p>
+  <p class="legend">Data comes from stockanalysis.com through your Firecrawl connector (4 page reads plus 52 weeks of prices, about 9 credits per ticker). It covers US-listed stocks. Free pages show five fiscal years, so "5 year" growth pillars compare the latest trailing figure with the oldest of those five years. Saved tickers live in this browser only. Not investment advice.</p>
   </div>
 
   <aside class="ai" aria-label="AI research">
@@ -280,7 +296,7 @@ table.comps th.x, table.comps td.x { text-align: right; }
     tl: 315989 * M, tcl: 168825 * M,
     ttm: { rev: 331.84e9, ni: 133.75e9, fcf: 66.99e9, eps: 17.95, dps: 3.92, gm: 67.94, pm: 40.31 },
     r: { p0: 535.07, mcap0: 4018334 * M, ev0: 4070304 * M, fpe: 27.08, peg: 1.72, roe: 34.04, roa: 14.09 },
-    ma50: 501.93, ma200: 434.26
+    ma50: 501.93, ma200: 434.26, chg52: 5.48
   };
   // example read from stockanalysis.com on Nov 2 2026
   var SAMPLE2 = {
@@ -296,8 +312,26 @@ table.comps th.x, table.comps td.x { text-align: right; }
     tl: 22854 * M, tcl: 8718 * M,
     ttm: { rev: 16.29e9, ni: 4.99e9, fcf: 5.68e9, eps: 16.81, dps: 3.88, gm: 70.99, pm: 30.60 },
     r: { p0: 466.55, mcap0: 137917 * M, ev0: 149059 * M, fpe: 24.46, peg: 1.90, roe: 17.88, roa: 8.33 },
-    ma50: 422.41, ma200: 430.08
+    ma50: 422.41, ma200: 430.08, chg52: -2.36,
+    // weekly closes, split-adjusted, read from Yahoo Finance on Nov 5 2026
+    hi: 522.47, lo: 361.03,
+    hist: [["2025-11-03", 469.65], ["2025-11-10", 467.27], ["2025-11-17", 466.98], ["2025-11-24", 471.93], ["2025-12-01", 471.64], ["2025-12-08", 474.01], ["2025-12-15", 484.96], ["2025-12-22", 500.90], ["2025-12-29", 485.01], ["2026-01-05", 512.72], ["2026-01-12", 516.89], ["2026-01-19", 504.83], ["2026-01-26", 499.33], ["2026-02-02", 415.59], ["2026-02-09", 387.46], ["2026-02-16", 394.97], ["2026-02-23", 418.05], ["2026-03-02", 427.97], ["2026-03-09", 399.71], ["2026-03-16", 401.54], ["2026-03-23", 384.33], ["2026-03-30", 407.91], ["2026-04-06", 393.02], ["2026-04-13", 418.70], ["2026-04-20", 413.24], ["2026-04-27", 403.08], ["2026-05-04", 397.46], ["2026-05-11", 381.41], ["2026-05-18", 395.08], ["2026-05-25", 401.14], ["2026-06-01", 401.55], ["2026-06-08", 396.32], ["2026-06-15", 388.76], ["2026-06-22", 386.15], ["2026-06-29", 439.89], ["2026-07-06", 430.50], ["2026-07-13", 450.84], ["2026-07-20", 426.40], ["2026-07-27", 411.93], ["2026-08-03", 408.19], ["2026-08-10", 418.80], ["2026-08-17", 431.29], ["2026-08-24", 442.89], ["2026-08-31", 443.51], ["2026-09-07", 410.71], ["2026-09-14", 405.32], ["2026-09-21", 403.30], ["2026-09-28", 386.27], ["2026-10-05", 407.82], ["2026-10-12", 429.64], ["2026-10-19", 450.31], ["2026-10-26", 466.55], ["2026-11-02", 481.69], ["2026-11-05", 471.46]]
   };
+  // Scion Asset Management (Michael Burry) latest 13F-HR on file, read from SEC EDGAR on Nov 5 2026
+  var BURRY = {
+    filing: { report_date: "2025-09-30", filing_date: "2025-11-03" }, total_value: 1381198076,
+    holdings: [
+      { issuer: "BRUKER CORP", cusip: "116794207", cls: "6.375 PREF SER A", pc: null, shares: 48334, value: 13137181 },
+      { issuer: "HALLIBURTON CO", cusip: "406216101", cls: "COM", pc: "Call", shares: 2500000, value: 61500000 },
+      { issuer: "LULULEMON ATHLETICA INC", cusip: "550021109", cls: "COM", pc: null, shares: 100000, value: 17793000 },
+      { issuer: "MOLINA HEALTHCARE INC", cusip: "60855R100", cls: "COM", pc: null, shares: 125000, value: 23920000 },
+      { issuer: "NVIDIA CORPORATION", cusip: "67066G104", cls: "COM", pc: "Put", shares: 1000000, value: 186580000 },
+      { issuer: "PALANTIR TECHNOLOGIES INC", cusip: "69608A108", cls: "CL A", pc: "Put", shares: 5000000, value: 912100000 },
+      { issuer: "PFIZER INC", cusip: "717081103", cls: "COM", pc: "Call", shares: 6000000, value: 152880000 },
+      { issuer: "SLM CORP", cusip: "78442P106", cls: "COM", pc: null, shares: 480054, value: 13287895 }
+    ]
+  };
+  var BURRY_TICKERS = { "116794207": "BRKRP", "406216101": "HAL", "550021109": "LULU", "60855R100": "MOH", "67066G104": "NVDA", "69608A108": "PLTR", "717081103": "PFE", "78442P106": "SLM" };
 
   /* ---------- formatting ---------- */
   var CCY = { USD: "$", EUR: "€", GBP: "£", CAD: "C$", JPY: "¥" };
@@ -379,6 +413,7 @@ table.comps th.x, table.comps td.x { text-align: right; }
       '<span class="px">' + sym() + price.toFixed(2) + '</span>' +
       '<span class="sub">' + (esc(s.asOf || "") ) + (s.asOf ? " · " : "") + 'fundamentals fetched ' + esc(s.fetched) + '</span>';
 
+    renderW52(s);
     var tag = passed === 8 ? ["All pillars pass", "good"] : failed === 0 ? ["Data incomplete", "bad"] : ["Fails " + failed + (failed > 1 ? " pillars" : " pillar"), "bad"];
     $("verdict").innerHTML = '<h2>Pillars passed</h2><div class="big">' + passed + '<small> / 8</small></div>' +
       '<span class="tag" style="background:var(--' + tag[1] + '-soft);color:var(--' + tag[1] + ')">' + tag[0] + '</span>' +
@@ -550,8 +585,71 @@ table.comps th.x, table.comps td.x { text-align: right; }
       tcl: first(B, "Total Current Liabilities") != null ? first(B, "Total Current Liabilities") * 1e6 : null,
       ttm: { rev: first(S, "Revenue"), ni: first(S, "Net Income"), fcf: first(S, "Free Cash Flow"), eps: first(S, "Earnings Per Share (EPS)"), dps: first(S, "Dividend Per Share"), gm: first(S, "Gross Margin"), pm: first(S, "Profit Margin") },
       r: { p0: ratiosPrice, mcap0: mcap0, ev0: ev0f, fpe: first(R, "Forward PE"), peg: first(R, "PEG Ratio"), roe: first(R, "Return on Equity (ROE)"), roa: first(R, "Return on Assets (ROA)") },
-      ma50: first(S, "50-Day Moving Average"), ma200: first(S, "200-Day Moving Average")
+      ma50: first(S, "50-Day Moving Average"), ma200: first(S, "200-Day Moving Average"), chg52: first(S, "52-Week Price Change")
     };
+  }
+
+  /* ---------- 52-week performance ---------- */
+  function fetchHist(tk) {
+    return mcp.callTool(SERVER, "firecrawl_scrape", {
+      objective: "Read 52 weeks of weekly prices for a stock tracker chart",
+      alexandria: { provider: "finance-yahoo-com", capability: "equities/history", options: { symbol: tk.replace(/\./g, "-"), interval: "1wk", range: "1y" } }
+    }, { cache: false }).then(function (r) {
+      var d = r && r.payload;
+      if (typeof d === "string") { try { d = JSON.parse(d); } catch (e) { return null; } }
+      var a = d && d.data && d.data.alexandria && d.data.alexandria[0], bars = a && a.data && a.data.bars;
+      if (!bars || bars.length < 2) return null;
+      var ok = bars.filter(function (b) { return b.close != null; });
+      var hi = Math.max.apply(null, ok.map(function (b) { return b.high != null ? b.high : b.close; })), lo = Math.min.apply(null, ok.map(function (b) { return b.low != null ? b.low : b.close; }));
+      return { hist: ok.map(function (b) { return [b.date, Math.round(b.close * 100) / 100]; }), hi: Math.round(hi * 100) / 100, lo: Math.round(lo * 100) / 100 };
+    });
+  }
+  function w52calc(s, p) {
+    var o = {}, h = s.hist;
+    if (h && h.length > 1 && s.hi != null) { o.chg = (p / h[0][1] - 1) * 100; o.hi = Math.max(s.hi, p); o.lo = Math.min(s.lo, p); o.since = h[0][0]; }
+    else if (s.chg52 != null) { o.chg = (p / s.price * (1 + s.chg52 / 100) - 1) * 100; }
+    if (o.hi != null) { o.fromHi = (p / o.hi - 1) * 100; o.aboveLo = (p / o.lo - 1) * 100; o.pos = (p - o.lo) / (o.hi - o.lo); }
+    return o;
+  }
+  function chart52(h) {
+    var W = 640, H = 170, L = 46, R = 10, T = 10, B = 22;
+    var vals = h.map(function (x) { return x[1]; }), lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), pad = (hi - lo) * 0.08 || 1;
+    lo -= pad; hi += pad;
+    var X = function (i) { return L + i * (W - L - R) / (h.length - 1); }, Y = function (v) { return T + (hi - v) / (hi - lo) * (H - T - B); };
+    var line = h.map(function (x, i) { return (i ? "L" : "M") + X(i).toFixed(1) + " " + Y(x[1]).toFixed(1); }).join(" ");
+    var area = line + " L" + X(h.length - 1).toFixed(1) + " " + (H - B) + " L" + L + " " + (H - B) + " Z";
+    var grid = [lo + pad, (lo + hi) / 2, hi - pad].map(function (t) {
+      return '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(t).toFixed(1) + '" y2="' + Y(t).toFixed(1) + '" stroke="var(--line)"/><text x="' + (L - 6) + '" y="' + (Y(t) + 4).toFixed(1) + '" text-anchor="end">' + t.toFixed(0) + '</text>';
+    }).join("");
+    var mon = function (d) { var m = new Date(d + "T00:00:00Z"); return m.toLocaleString("en-US", { month: "short", year: "2-digit", timeZone: "UTC" }); };
+    var mid = Math.floor(h.length / 2);
+    var xl = [[0, "start"], [mid, "middle"], [h.length - 1, "end"]].map(function (a) { return '<text x="' + X(a[0]).toFixed(1) + '" y="' + (H - 6) + '" text-anchor="' + a[1].replace("start", "start").replace("middle", "middle") + '">' + mon(h[a[0]][0]) + '</text>'; }).join("");
+    var iMax = vals.indexOf(Math.max.apply(null, vals)), iMin = vals.indexOf(Math.min.apply(null, vals)), last = h.length - 1;
+    var dots = h.map(function (x, i) { return '<circle cx="' + X(i).toFixed(1) + '" cy="' + Y(x[1]).toFixed(1) + '" r="6" fill="transparent"><title>' + x[0] + ": $" + x[1].toFixed(2) + '</title></circle>'; }).join("");
+    return '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Weekly closing price over the last 52 weeks">' + grid + xl +
+      '<path d="' + area + '" fill="var(--accent-soft)"/><path d="' + line + '" fill="none" stroke="var(--accent)" stroke-width="2"/>' +
+      '<circle cx="' + X(iMax).toFixed(1) + '" cy="' + Y(vals[iMax]).toFixed(1) + '" r="3.5" fill="var(--surface)" stroke="var(--muted)" stroke-width="1.5"/>' +
+      '<circle cx="' + X(iMin).toFixed(1) + '" cy="' + Y(vals[iMin]).toFixed(1) + '" r="3.5" fill="var(--surface)" stroke="var(--muted)" stroke-width="1.5"/>' +
+      '<circle cx="' + X(last).toFixed(1) + '" cy="' + Y(vals[last]).toFixed(1) + '" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/>' + dots + '</svg>';
+  }
+  function renderW52(s) {
+    var el = $("w52"), p = price, o = w52calc(s, p), sy = sym();
+    if (o.chg == null) {
+      el.innerHTML = '<div class="w52-head"><span class="lbl">52-week performance</span></div><p class="ai-note">No 52-week data saved for ' + esc(s.t) + '.' + (mcp ? ' <button type="button" id="w52load" class="rowbtn">Load 52-week prices (5 credits)</button>' : "") + '</p>';
+      return;
+    }
+    var cls = o.chg >= 0 ? "up" : "down";
+    var h = '<div class="w52-head"><div><span class="lbl">52-week performance</span><div class="big ' + cls + '">' + (o.chg >= 0 ? "+" : "") + o.chg.toFixed(1) + '%</div></div>' +
+      '<span class="ai-note">' + (o.since ? "From the " + esc(o.since) + " weekly close to " + sy + p.toFixed(2) + ". Weekly closes, adjusted for splits." : "From the 52-week price change on the statistics page.") + '</span></div>';
+    if (o.hi != null) {
+      h += '<div class="w52-stats"><div><span>52-week high</span><b>' + sy + o.hi.toFixed(2) + '</b></div><div><span>52-week low</span><b>' + sy + o.lo.toFixed(2) + '</b></div>' +
+        '<div><span>From the high</span><b class="' + (o.fromHi < -0.05 ? "down" : "") + '">' + (o.fromHi >= 0 ? "+" : "") + o.fromHi.toFixed(1) + '%</b></div><div><span>Above the low</span><b class="up">+' + o.aboveLo.toFixed(1) + '%</b></div></div>' +
+        '<div><div class="track"><div class="mark" style="left:' + (o.pos * 100).toFixed(1) + '%" title="Current price"></div></div><div class="scale"><span>' + sy + o.lo.toFixed(0) + '</span><span>' + Math.round(o.pos * 100) + '% of the way up the range</span><span>' + sy + o.hi.toFixed(0) + '</span></div></div>';
+      h += chart52(s.hist);
+    } else {
+      h += '<p class="ai-note">The weekly price chart and range are not saved for this ticker.' + (mcp ? ' <button type="button" id="w52load" class="rowbtn">Load 52-week prices (5 credits)</button>' : "") + '</p>';
+    }
+    el.innerHTML = h;
   }
 
   function errMsg(err, tk) {
@@ -580,13 +678,74 @@ table.comps th.x, table.comps td.x { text-align: right; }
       scrape(base + "financials/balance-sheet/?p=annual", false)
     ]).then(function (md) {
       var s = build(tk, md[0], md[1], md[2], md[3]);
-      store[tk] = s; save(); select(s);
-      say("Loaded " + s.name + ". Saved to this browser.");
+      say("Reading 52 weeks of prices for " + tk + "…");
+      return fetchHist(tk).then(function (h) { return h; }, function () { return null; }).then(function (h) {
+        if (h) { s.hist = h.hist; s.hi = h.hi; s.lo = h.lo; }
+        store[tk] = s; save(); select(s);
+        say("Loaded " + s.name + ". Saved to this browser." + (h ? "" : " The 52-week price history could not be read."));
+      });
     }).catch(function (err) {
       say(errMsg(err, tk), true);
     }).then(function () {
       busy = false; $("go").disabled = false; $("refresh").disabled = false; $("go").textContent = "Analyze";
     });
+  }
+
+  $("w52").addEventListener("click", function (e) {
+    if (!e.target.closest("#w52load") || !mcp || !cur) return;
+    var s = cur, b = e.target.closest("#w52load");
+    b.disabled = true; b.textContent = "Loading…";
+    fetchHist(s.t).then(function (h) {
+      if (h) { s.hist = h.hist; s.hi = h.hi; s.lo = h.lo; store[s.t] = s; save(); renderW52(s); say("52-week prices loaded for " + s.t + "."); }
+      else { b.disabled = false; b.textContent = "Load 52-week prices (5 credits)"; say("No 52-week price history was found for " + s.t + ".", true); }
+    }, function (err) { b.disabled = false; b.textContent = "Load 52-week prices (5 credits)"; say(errMsg(err, s.t), true); });
+  });
+
+  /* ---------- Michael Burry (Scion Asset Management) 13F ---------- */
+  var burryMem = null, BURRYKEY = "pillars-burry-13f-v1";
+  function normName(n) {
+    return String(n).toUpperCase().replace(/[^A-Z0-9 ]/g, " ").replace(/\b(THE|INC|INCORPORATED|CORP|CORPORATION|CO|COMPANY|LTD|LLC|PLC|HOLDINGS|HLDGS|GROUP|CLASS|CL|COM|NEW)\b/g, " ").replace(/\s+/g, " ").trim();
+  }
+  function getBurry() {
+    if (burryMem) return Promise.resolve(burryMem);
+    try {
+      var c = JSON.parse(localStorage.getItem(BURRYKEY));
+      if (c && c.data && Date.now() - c.ts < 7 * 864e5 && c.data.filing.report_date >= BURRY.filing.report_date) { burryMem = c.data; return Promise.resolve(burryMem); }
+    } catch (e) {}
+    if (!mcp) { burryMem = BURRY; return Promise.resolve(BURRY); }
+    return mcp.callTool(SERVER, "firecrawl_scrape", {
+      objective: "Check the latest 13F holdings filed by Michael Burry's Scion Asset Management",
+      alexandria: { provider: "sec-gov", capability: "filings/holdings_13f", options: { cik: 1649339, limit: 200 } }
+    }, { cache: false }).then(function (r) {
+      var d = r && r.payload;
+      if (typeof d === "string") { try { d = JSON.parse(d); } catch (e) { d = null; } }
+      var a = d && d.data && d.data.alexandria && d.data.alexandria[0] && d.data.alexandria[0].data;
+      if (!a || !a.filing || !Array.isArray(a.holdings)) return BURRY;
+      var data = { filing: { report_date: a.filing.report_date, filing_date: a.filing.filing_date }, total_value: a.total_value, holdings: a.holdings.map(function (h) {
+        return { issuer: h.issuer, cusip: h.cusip, cls: h.class, pc: h.put_call, shares: h.shares_or_principal, value: h.value };
+      }) };
+      if (data.filing.report_date < BURRY.filing.report_date) return BURRY;
+      burryMem = data;
+      try { localStorage.setItem(BURRYKEY, JSON.stringify({ ts: Date.now(), data: data })); } catch (e) {}
+      return data;
+    }).catch(function () { return BURRY; }).then(function (d) { burryMem = d; return d; });
+  }
+  function matchBurry(s, d) {
+    var nm = normName(s.name);
+    return d.holdings.filter(function (h) { return BURRY_TICKERS[h.cusip] === s.t || normName(h.issuer) === nm; });
+  }
+  function posText(h) {
+    var kind = h.pc === "Put" ? "put options on " : h.pc === "Call" ? "call options on " : "";
+    return kind + h.shares.toLocaleString("en-US") + " shares" + (/PREF/i.test(h.cls || "") ? " of preferred stock" : "") + " (reported value $" + (h.value / 1e6).toFixed(1) + "M" + (h.pc ? ", notional of the underlying shares" : "") + ")";
+  }
+  function burryHtml(b) {
+    if (!b) return "";
+    var f = b.data.filing, when = "13F for " + f.report_date + ", filed " + f.filing_date;
+    if (b.match.length) {
+      return '<div class="burry hit"><b>Michael Burry (Scion Asset Management) reports a position in ' + esc(b.ticker) + '</b> <span class="muted">(' + esc(when) + ')</span><ul>' +
+        b.match.map(function (h) { return "<li>" + esc(h.pc === "Put" ? "Bearish: " : h.pc === "Call" ? "Bullish: " : "") + esc(posText(h)) + "</li>"; }).join("") + "</ul></div>";
+    }
+    return '<div class="burry"><b>Michael Burry (Scion Asset Management) does not report ' + esc(b.ticker) + '</b> <span class="muted">(' + esc(when) + ')</span></div>';
   }
 
   /* ---------- AI research column ---------- */
@@ -600,7 +759,7 @@ table.comps th.x, table.comps td.x { text-align: right; }
   var ACTIONS = [
     { k: "est", title: "Review analyst estimates", sub: function (t) { return "Use " + t + " consensus as a high-side ceiling"; } },
     { k: "pil", title: "Explain the 8 Pillars", sub: function (t) { return "Break down " + t + "'s 8 Pillars"; } },
-    { k: "cases", title: "See bull & bear cases", sub: function (t) { return "What " + t + " does, its moat, competitors with live prices, plus the news behind the bull and bear cases"; } }
+    { k: "cases", title: "See bull & bear cases", sub: function (t) { return "What " + t + " does, its moat, competitors with live prices, whether Michael Burry holds it, plus the news behind the bull and bear cases"; } }
   ];
   var RULES = "You are a careful equity research assistant inside a stock tracker built around the '8 Pillars' checklist. " +
     "Use ONLY the data supplied below plus general, well-established knowledge of how the metrics work. Never invent figures, dates, quotes or news; if something is not in the data, say so. " +
@@ -631,6 +790,7 @@ table.comps th.x, table.comps td.x { text-align: right; }
   function turnHtml(it) {
     var h = '<div class="turn"><div class="q">' + esc(it.q) + '</div><div class="a">';
     if (it.comps && it.comps.length) h += compsHtml(it.comps);
+    if (it.burry) h += burryHtml(it.burry);
     if (it.text) h += md(it.text);
     if (it.status === "run") h += '<div class="thinking">' + esc(it.text ? "Writing…" : (it.note || "Thinking…")) + '</div>';
     if (it.warn) h += '<p class="ai-note">' + esc(it.warn) + '</p>';
@@ -677,6 +837,8 @@ table.comps th.x, table.comps td.x { text-align: right; }
     L.push("Valuation: market cap " + money(c.mcap) + "; EV " + money(c.ev) + "; P/E TTM " + x2(c.pe) + "; forward P/E " + x2(c.fpe) + "; PEG " + x2(c.peg) + "; P/S " + x2(c.ps) + "; P/FCF TTM " + x2(c.pfcf) + "; EV/FCF " + x2(c.evF) + "; dividend yield " + pct(c.dy));
     L.push("TTM: revenue " + money(s.ttm.rev) + "; net income " + money(s.ttm.ni) + "; FCF " + money(s.ttm.fcf) + "; EPS " + (s.ttm.eps != null ? s.ttm.eps : "n/a") + "; gross margin " + pct(s.ttm.gm) + "; profit margin " + pct(s.ttm.pm));
     L.push("Returns: ROE " + pct(s.r.roe) + "; ROA " + pct(s.r.roa) + "; 5Yr average ROIC " + pct(c.roic5));
+    var w = w52calc(s, price);
+    if (w.chg != null) L.push("52-week performance: " + (w.chg >= 0 ? "+" : "") + w.chg.toFixed(1) + "%" + (w.hi != null ? "; 52-week range " + w.lo.toFixed(2) + " to " + w.hi.toFixed(2) + "; price is " + w.fromHi.toFixed(1) + "% from the high and +" + w.aboveLo.toFixed(1) + "% above the low" : ""));
     L.push("Trend: 50-day MA " + (s.ma50 != null ? s.ma50 : "n/a") + "; 200-day MA " + (s.ma200 != null ? s.ma200 : "n/a"));
     L.push("Reported fiscal years (newest first):");
     s.fy.forEach(function (y, i) {
@@ -774,6 +936,13 @@ table.comps th.x, table.comps td.x { text-align: right; }
     var nm = s.name + " (" + s.t + ")", p = [RULES, "TODAY: " + new Date().toISOString().slice(0, 10), "=== TRACKER DATA ===\n" + ctxText()];
     if (ex.forecast) p.push("=== ANALYST FORECAST PAGE (stockanalysis.com) ===\n" + ex.forecast);
     if (ex.about) p.push("=== COMPANY PROFILE (stockanalysis.com, may be cut short) ===\n" + ex.about);
+    if (kind === "cases" && ex.burry) {
+      var bd = ex.burry.data;
+      p.push("=== MICHAEL BURRY / SCION ASSET MANAGEMENT (SEC 13F, read from EDGAR) ===\nLatest 13F on file: period ending " + bd.filing.report_date + ", filed " + bd.filing.filing_date + ".\n" +
+        "Positions in " + s.t + ": " + (ex.burry.match.length ? ex.burry.match.map(posText).join("; ") : "none reported") + ".\n" +
+        "All reported holdings: " + bd.holdings.map(function (h) { return h.issuer + (h.pc ? " " + h.pc.toLowerCase() + "s" : ""); }).join(", ") + ".\n" +
+        "A 13F lists only US-listed long stock and option positions (option values are the notional of the underlying shares). It does not show short stock positions, non-US holdings or personal accounts.");
+    }
     if (kind === "cases" && ex.comps && ex.comps.length) {
       p.push("=== COMPETITOR SNAPSHOT (live from stockanalysis.com, USD) ===\n" + ex.comps.map(function (c) {
         return c.ticker + " (" + c.name + "): price " + c.price.toFixed(2) + "; market cap " + (c.cap || "n/a") + "; P/E " + (c.pe || "n/a") + "; forward P/E " + (c.fpe || "n/a") +
@@ -795,8 +964,9 @@ table.comps th.x, table.comps td.x { text-align: right; }
         "3) Competitors: for each competitor in the COMPETITOR SNAPSHOT give its ticker and the exact price from the snapshot (never invent or change a price), then a few words on how it compares with " + s.t + ", then an educational view of whether it looks like a buy: lean Buy-style, Hold-style or Avoid-style, with 1 or 2 reasons taken from the snapshot numbers (valuation, analyst consensus versus price, size) and one thing that would change the view. State once that this is an educational exercise and not investment advice. " +
         (ex.comps && ex.comps.length ? "" : "No competitor prices could be loaded, so name the main direct competitors you are confident about, say that live prices are unavailable, and give no prices and no buy views. If there are no clear competitors, say so. ") +
         "Label the moat and competitor parts as (general knowledge) where they go beyond the supplied data. " +
-        "4) Bull case and bear case: 3 or 4 bullets each, each tied to a specific headline, analyst action or number from the data (name it). " +
-        "5) What to watch: 2 bullets. Note that the headlines are a partial feed." + (ex.news ? "" : " No news could be loaded, so base the cases on the tracker metrics only and say so.") + (ex.about ? "" : " No company profile could be loaded, so rely on what you are confident about and say so."),
+        (ex.burry ? "4) Michael Burry: say whether Michael Burry's Scion Asset Management reports a position in " + s.t + " using only the MICHAEL BURRY block. If it does, describe each position (shares, puts or calls, reported value) and what it signals (a put is a bearish bet, a call or shares a bullish one). If it does not, say it is not in the latest 13F. Always state the period and filing date of that 13F, say how out of date it may be today, and mention that 13Fs do not show short stock positions or personal accounts. Do not invent any trade or opinion. " : "") +
+        "5) Bull case and bear case: 3 or 4 bullets each, each tied to a specific headline, analyst action or number from the data (name it); where useful also use the 52-week performance in the tracker data. " +
+        "6) What to watch: 2 bullets. Note that the headlines are a partial feed." + (ex.news ? "" : " No news could be loaded, so base the cases on the tracker metrics only and say so.") + (ex.about ? "" : " No company profile could be loaded, so rely on what you are confident about and say so."),
       ask: "Answer the investor's question about " + nm + ": \"" + q + "\". Use the data; if it needs information that is not provided, say what is missing and where to look."
     }[kind];
     p.push("=== TASK ===\n" + task);
@@ -831,7 +1001,11 @@ table.comps th.x, table.comps td.x { text-align: right; }
       if (ctl.signal.aborted) throw { code: "cancelled" };
       if (kind !== "cases") return ex;
       item.note = "Finding competitors…"; renderAI();
-      return getComps(s, ex, ctl.signal, item).then(function (c) { item.comps = c; return Object.assign({}, ex, { comps: c }); });
+      return getComps(s, ex, ctl.signal, item).then(function (c) { item.comps = c; return Object.assign({}, ex, { comps: c }); }).then(function (ex2) {
+        if (ctl.signal.aborted) throw { code: "cancelled" };
+        item.note = "Checking Michael Burry's 13F holdings…"; renderAI();
+        return getBurry().then(function (d) { item.burry = { data: d, match: matchBurry(s, d), ticker: s.t }; return Object.assign({}, ex2, { burry: item.burry }); });
+      });
     }).then(function (ex) {
       if (ctl.signal.aborted) throw { code: "cancelled" };
       item.note = "Thinking…"; renderAI();
