@@ -140,6 +140,13 @@ td .sym { font-weight: 600; }
 .ai-ask { display: flex; gap: 8px; padding: 12px 16px 14px; border-top: 1px solid var(--line); }
 .ai-ask input { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--surface-2); color: var(--fg); border-radius: 6px; padding: 9px 10px; font: 14px var(--font-sans); }
 .ai-note { color: var(--muted); font-size: 12px; margin: 0; }
+.tw2 { overflow-x: auto; margin-bottom: 6px; }
+table.comps { width: 100%; min-width: 0; border-collapse: collapse; font-size: 12px; }
+table.comps th { padding: 4px 6px; }
+table.comps td { padding: 4px 6px; font: 12px var(--font-mono); font-variant-numeric: tabular-nums; }
+table.comps td:first-child, table.comps td:last-child { font-family: var(--font-sans); }
+table.comps .muted { color: var(--muted); }
+table.comps th.x, table.comps td.x { text-align: right; }
 .ai-note.err { color: var(--bad); }
 
 .turn { display: flex; flex-direction: column; gap: 8px; }
@@ -593,7 +600,7 @@ td .sym { font-weight: 600; }
   var ACTIONS = [
     { k: "est", title: "Review analyst estimates", sub: function (t) { return "Use " + t + " consensus as a high-side ceiling"; } },
     { k: "pil", title: "Explain the 8 Pillars", sub: function (t) { return "Break down " + t + "'s 8 Pillars"; } },
-    { k: "cases", title: "See bull & bear cases", sub: function (t) { return "What " + t + " does, its moat and competitors, plus the news behind the bull and bear cases"; } }
+    { k: "cases", title: "See bull & bear cases", sub: function (t) { return "What " + t + " does, its moat, competitors with live prices, plus the news behind the bull and bear cases"; } }
   ];
   var RULES = "You are a careful equity research assistant inside a stock tracker built around the '8 Pillars' checklist. " +
     "Use ONLY the data supplied below plus general, well-established knowledge of how the metrics work. Never invent figures, dates, quotes or news; if something is not in the data, say so. " +
@@ -623,6 +630,7 @@ td .sym { font-weight: 600; }
 
   function turnHtml(it) {
     var h = '<div class="turn"><div class="q">' + esc(it.q) + '</div><div class="a">';
+    if (it.comps && it.comps.length) h += compsHtml(it.comps);
     if (it.text) h += md(it.text);
     if (it.status === "run") h += '<div class="thinking">' + esc(it.text ? "Writing…" : (it.note || "Thinking…")) + '</div>';
     if (it.warn) h += '<p class="ai-note">' + esc(it.warn) + '</p>';
@@ -706,6 +714,51 @@ td .sym { font-weight: 600; }
     part = part.replace(/\[\\?\[Read more\\?\]\]\([^)]*\)/g, "").replace(/!\[[^\]]*\]\([^)]*\)/g, "").replace(/\[([^\]]*)\]\([^)]*\)/g, "$1").replace(/\n{2,}/g, "\n").trim();
     return part.slice(0, 2500);
   }
+  /* competitors: Claude names them, the page then reads each one's live price so no price is invented */
+  function parseComp(tk, md) {
+    var hm = /Compare\n\n([\d,]+(?:\.\d+)?)\n/.exec(md);
+    var nm = new RegExp("\\n#?\\s*([^\\n\\[\\]!#]+?) \\(" + tk.replace(/[.\-]/g, "\\$&") + "\\)\\n").exec(md);
+    if (!hm || !nm) return null;
+    var T = tables(md);
+    var f = function (k) { var v = T[k] && T[k][0]; return v ? String(v).replace(/\s[+-][\d.]+%.*$/, "").trim() : null; };
+    return { ticker: tk, name: nm[1].trim(), price: parseFloat(hm[1].replace(/,/g, "")), cap: f("Market Cap"), pe: f("PE Ratio"), fpe: f("Forward PE"), range: f("52-Week Range"), cons: f("Analysts"), target: f("Price Target") };
+  }
+  function getComps(s, ex, signal, item) {
+    if (ex.comps) return Promise.resolve(ex.comps);
+    if (!sampleFn || typeof sampleFn.json !== "function") return Promise.resolve([]);
+    var ask = "Name the main direct competitors of " + s.name + " (" + s.t + ") that are publicly traded on a US exchange (NYSE, NASDAQ, NYSE American) or as a US-listed ADR. " +
+      "Use only real ticker symbols you are confident about; leave a company out if you are unsure of its ticker. Return at most 5. Return an empty array if there is no clear direct competitor. " +
+      'Reply with only a JSON array like [{"ticker":"MCO","name":"Moody\'s"}].\n\nCompany profile:\n' + (ex.about || "(none supplied)");
+    return sampleFn.json(ask, { modelTier: "quick", signal: signal }).then(function (list) {
+      var seen = {}, out = [];
+      (Array.isArray(list) ? list : []).forEach(function (c) {
+        var t = c && typeof c.ticker === "string" ? c.ticker.trim().toUpperCase() : "";
+        if (/^[A-Z]{1,5}(\.[A-Z])?$/.test(t) && t !== s.t && !seen[t] && out.length < 5) { seen[t] = 1; out.push(t); }
+      });
+      if (!out.length) return [];
+      if (!mcp) { item.warn = "Competitor prices need the Firecrawl connector, which is not available in this view."; return []; }
+      item.note = "Reading competitor prices…"; renderAI();
+      return Promise.all(out.map(function (t) {
+        return scrape("https://stockanalysis.com/stocks/" + t.toLowerCase() + "/", true).then(function (md) { return parseComp(t, md); }, function () { return null; });
+      })).then(function (rows) {
+        var ok = rows.filter(Boolean);
+        if (ok.length < out.length) item.warn = "Could not read prices for " + (out.length - ok.length) + " suggested competitor" + (out.length - ok.length > 1 ? "s" : "") + ", so they are left out.";
+        if (!extras[s.t]) extras[s.t] = ex;
+        extras[s.t].comps = ok;
+        return ok;
+      });
+    }).catch(function (e) {
+      if (e && e.code === "cancelled") throw e;
+      item.warn = "Could not look up competitors (" + ((e && e.code) || "error") + "). The answer names them without live prices.";
+      return [];
+    });
+  }
+  function compsHtml(list) {
+    return '<div class="tw2"><table class="comps"><thead><tr><th>Competitor</th><th class="x">Price</th><th class="x">Mkt cap</th><th class="x">P/E</th><th class="x">Fwd P/E</th><th>Analysts</th></tr></thead><tbody>' +
+      list.map(function (c) {
+        return '<tr><td><b>' + esc(c.ticker) + '</b> <span class="muted">' + esc(c.name) + '</span></td><td class="x">$' + c.price.toFixed(2) + '</td><td class="x">' + esc(c.cap || "n/a") + '</td><td class="x">' + esc(c.pe || "n/a") + '</td><td class="x">' + esc(c.fpe || "n/a") + '</td><td>' + esc(c.cons || "n/a") + '</td></tr>';
+      }).join("") + '</tbody></table></div><p class="ai-note">Live prices from stockanalysis.com. The competitor views below are an educational exercise, not investment advice.</p>';
+  }
   function getExtra(s) {
     if (extras[s.t]) return Promise.resolve(extras[s.t]);
     if (!mcp) return Promise.resolve({});
@@ -721,6 +774,12 @@ td .sym { font-weight: 600; }
     var nm = s.name + " (" + s.t + ")", p = [RULES, "TODAY: " + new Date().toISOString().slice(0, 10), "=== TRACKER DATA ===\n" + ctxText()];
     if (ex.forecast) p.push("=== ANALYST FORECAST PAGE (stockanalysis.com) ===\n" + ex.forecast);
     if (ex.about) p.push("=== COMPANY PROFILE (stockanalysis.com, may be cut short) ===\n" + ex.about);
+    if (kind === "cases" && ex.comps && ex.comps.length) {
+      p.push("=== COMPETITOR SNAPSHOT (live from stockanalysis.com, USD) ===\n" + ex.comps.map(function (c) {
+        return c.ticker + " (" + c.name + "): price " + c.price.toFixed(2) + "; market cap " + (c.cap || "n/a") + "; P/E " + (c.pe || "n/a") + "; forward P/E " + (c.fpe || "n/a") +
+          "; 52-week range " + (c.range || "n/a") + "; analyst consensus " + (c.cons || "n/a") + "; price target " + (c.target || "n/a");
+      }).join("\n"));
+    }
     if (ex.news) p.push("=== LATEST NEWS HEADLINES (stockanalysis.com feed) ===\n" + ex.news);
     var task = {
       est: "Review analyst estimates for " + nm + ". 1) Consensus rating, analyst count and price targets (low, average, median, high) against the price used, with percent upside. " +
@@ -730,10 +789,12 @@ td .sym { font-weight: 600; }
       pil: "Explain the 8 Pillars for " + nm + ". For each pillar give one short bullet: what it tests, why it matters, and how " + s.t + " scores (use the numbers). " +
         "Then add an Overall section: how many pillars pass, which fail and why, and the price at which the two valuation pillars would pass. " +
         "Mention that the growth pillars compare the latest trailing figure with the oldest reported year, and point out any distortion the data shows, such as a merger or large share issuance.",
-      cases: "Use at most 550 words. Cover " + nm + " in this order. " +
+      cases: "Use at most 800 words. Cover " + nm + " in this order. " +
         "1) What the company does: 2 or 3 plain sentences on how it makes money and its main segments or products, from the company profile and tracker data. " +
         "2) Moat: its competitive advantages (for example switching costs, network effects, scale, brand, intangible assets or regulation), with one line of evidence each from the data where possible (margins, ROIC, growth). Say plainly if the moat looks narrow or none. " +
-        "3) Competitors: the main direct competitors by name, if any, with a few words on how each compares; if there are none that are clear, say so. Label this and the moat as (general knowledge) where they go beyond the supplied data. " +
+        "3) Competitors: for each competitor in the COMPETITOR SNAPSHOT give its ticker and the exact price from the snapshot (never invent or change a price), then a few words on how it compares with " + s.t + ", then an educational view of whether it looks like a buy: lean Buy-style, Hold-style or Avoid-style, with 1 or 2 reasons taken from the snapshot numbers (valuation, analyst consensus versus price, size) and one thing that would change the view. State once that this is an educational exercise and not investment advice. " +
+        (ex.comps && ex.comps.length ? "" : "No competitor prices could be loaded, so name the main direct competitors you are confident about, say that live prices are unavailable, and give no prices and no buy views. If there are no clear competitors, say so. ") +
+        "Label the moat and competitor parts as (general knowledge) where they go beyond the supplied data. " +
         "4) Bull case and bear case: 3 or 4 bullets each, each tied to a specific headline, analyst action or number from the data (name it). " +
         "5) What to watch: 2 bullets. Note that the headlines are a partial feed." + (ex.news ? "" : " No news could be loaded, so base the cases on the tracker metrics only and say so.") + (ex.about ? "" : " No company profile could be loaded, so rely on what you are confident about and say so."),
       ask: "Answer the investor's question about " + nm + ": \"" + q + "\". Use the data; if it needs information that is not provided, say what is missing and where to look."
@@ -767,6 +828,11 @@ td .sym { font-weight: 600; }
       return {};
     }) : Promise.resolve(extras[s.t] || {});
     pre.then(function (ex) {
+      if (ctl.signal.aborted) throw { code: "cancelled" };
+      if (kind !== "cases") return ex;
+      item.note = "Finding competitors…"; renderAI();
+      return getComps(s, ex, ctl.signal, item).then(function (c) { item.comps = c; return Object.assign({}, ex, { comps: c }); });
+    }).then(function (ex) {
       if (ctl.signal.aborted) throw { code: "cancelled" };
       item.note = "Thinking…"; renderAI();
       return sampleFn(buildPrompt(kind, q, s, ex), { signal: ctl.signal, onText: function (u) { item.text = u.text; renderAI(); } });
